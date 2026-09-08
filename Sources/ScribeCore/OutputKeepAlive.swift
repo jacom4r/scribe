@@ -9,8 +9,9 @@ import Foundation
 /// device is enough to keep the aggregate running, and adds nothing audible.
 /// Start before `CaptureEngine.start()`; stop after `CaptureEngine.stop()`.
 ///
-/// `@unchecked Sendable`: every access is on the main thread (`LiveCapture` and
-/// the default-output listener block, which runs on the main queue).
+/// `@unchecked Sendable`: all access is main-thread: the only owner is the
+/// main-actor `RecordingSession` (via `LiveCapture`), and the default-output
+/// listener runs on the main queue, so `deinit` also runs on main.
 public final class OutputKeepAlive: @unchecked Sendable {
     private var deviceID = AudioDeviceID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?

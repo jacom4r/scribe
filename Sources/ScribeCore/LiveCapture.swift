@@ -46,13 +46,25 @@ final class LiveCapture: AudioCapturing {
         }
         // The keepalive is pinned to the output device it started on, so a new
         // default output would stall the aggregate. Restarting it moves the
-        // silent IO proc to the new device; this is not an interruption, so the
-        // relay stays quiet. No locking: this block runs on the main queue and
-        // `LiveCapture` only touches `keepAlive` on the main thread.
+        // silent IO proc to the new device. Output-device changes are not
+        // interruptions, so a successful restart keeps the relay quiet; but a
+        // keepalive that cannot re-arm means the aggregate has lost its clock,
+        // so that case is reported and the recording stops. The capture is weak
+        // so a notification still queued on the main queue as `LiveCapture` is
+        // torn down cannot start an IO proc nothing will stop. No locking: this
+        // block runs on the main queue and `LiveCapture` only touches
+        // `keepAlive` on the main thread.
         let keepAlive = self.keepAlive
-        self.outputWatcher = .defaultOutput {
+        self.outputWatcher = .defaultOutput { [weak keepAlive] in
+            guard let keepAlive else { return }
             keepAlive.stop()
-            try? keepAlive.start()
+            do {
+                try keepAlive.start()
+            } catch let error as ScribeError {
+                relay.fire(error)
+            } catch {
+                relay.fire(.captureStartFailed(-1))
+            }
         }
     }
 
