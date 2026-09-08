@@ -7,8 +7,11 @@ set -euo pipefail
 NAME="Scribe Dev"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
-if security find-identity -v -p codesigning | grep -q "\"$NAME\""; then
-  echo "'$NAME' already exists."
+# Match on the certificate, not `find-identity -v`: the latter lists only
+# *trusted* identities, so a run aborted between `security import` and
+# `security add-trusted-cert` would go undetected here and create a duplicate.
+if security find-certificate -c "$NAME" "$KEYCHAIN" >/dev/null 2>&1; then
+  echo "'$NAME' certificate already exists in $KEYCHAIN. If codesign cannot use it, delete it in Keychain Access and rerun."
   exit 0
 fi
 

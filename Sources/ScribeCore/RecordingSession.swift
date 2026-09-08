@@ -79,7 +79,7 @@ public final class RecordingSession {
 
     private func handleInterruption(_ error: ScribeError) {
         guard case .recording(_, let url) = state else { return }
-        try? stop()
+        _ = try? stop()
         onInterrupted?(error, url)
     }
 }
