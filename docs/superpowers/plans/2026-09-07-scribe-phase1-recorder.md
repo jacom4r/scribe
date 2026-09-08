@@ -2521,3 +2521,123 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - `swift test` passes with all seven suites.
 - `scripts/bundle.sh` produces a signed `build/Scribe.app` whose authority is "Scribe Dev".
 - Every step in `docs/smoke-test.md` passes on the dev machine.
+
+---
+
+## Addendum A (2026-09-08): OutputKeepAlive, ruled after the Task 7 spike
+
+**Finding.** With the aggregate exactly as Task 6 builds it, the IO proc receives zero callbacks until some process performs output IO; a recording started in silence produces a zero-frame WAV. A standalone spike (`.superpowers/sdd/.../spike-aggregate-idle.md`) showed no dictionary change fixes it (explicit `ClockDeviceKey`, swapped drift flags, tap-only aggregate, output device as extra sub-device all give 0 callbacks in silence). A global process tap has no timeline of its own and gates the aggregate. Running a silent output IO proc from Scribe's own process, which the tap includes, makes the aggregate clock continuously (463 callbacks in 5 s of silence); excluding our own process from the tap breaks it again, so the mechanism is real. The zeros add nothing to the mix.
+
+**Ruling.** Add `OutputKeepAlive`, started before `CaptureEngine.start()` and stopped after `CaptureEngine.stop()`. `ProcessTap` must keep including Scribe's own process (it already does). Owners: `scribe-cli record` in Task 7.5, `LiveCapture` in Task 8. Task 12 additionally restarts the keepalive when the default output device changes.
+
+### Task 7.5: OutputKeepAlive
+
+**Files:**
+- Create: `Sources/ScribeCore/OutputKeepAlive.swift`
+- Modify: `Sources/ScribeCore/CoreAudioProperties.swift` (add `defaultOutputDevice()`)
+- Modify: `Sources/scribe-cli/main.swift` (`record` case)
+
+**Interfaces:**
+- Produces: `public final class OutputKeepAlive { public init(); public func start() throws; public func stop() }`.
+- Produces: `static func defaultOutputDevice() throws -> AudioDeviceID` on `enum CoreAudio`, throwing `ScribeError.captureStartFailed(status)` on failure.
+
+- [ ] **Step 1: Add `defaultOutputDevice()` to `CoreAudioProperties.swift`**, after `defaultInputDevice()`:
+
+```swift
+    static func defaultOutputDevice() throws -> AudioDeviceID {
+        var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
+        var id = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id)
+        guard status == noErr, id != kAudioObjectUnknown else { throw ScribeError.captureStartFailed(status) }
+        return id
+    }
+```
+
+- [ ] **Step 2: Write `Sources/ScribeCore/OutputKeepAlive.swift`**
+
+```swift
+import CoreAudio
+import Foundation
+
+/// Keeps the system-audio tap clocking by doing silent output IO from this process.
+///
+/// A process tap has no clock of its own: an aggregate device containing one
+/// delivers no input callbacks until some process performs output IO. The tap
+/// includes Scribe itself, so a zero-filled output IO proc on the default output
+/// device is enough to keep the aggregate running, and adds nothing audible.
+/// Start before `CaptureEngine.start()`; stop after `CaptureEngine.stop()`.
+public final class OutputKeepAlive {
+    private var deviceID = AudioDeviceID(kAudioObjectUnknown)
+    private var procID: AudioDeviceIOProcID?
+
+    public init() {}
+
+    public func start() throws {
+        guard procID == nil else { return }
+        let device = try CoreAudio.defaultOutputDevice()
+
+        var created: AudioDeviceIOProcID?
+        var status = AudioDeviceCreateIOProcIDWithBlock(&created, device, nil) { _, _, _, outputData, _ in
+            let list = UnsafeMutableAudioBufferListPointer(outputData)
+            for buffer in list {
+                if let data = buffer.mData {
+                    memset(data, 0, Int(buffer.mDataByteSize))
+                }
+            }
+        }
+        guard status == noErr, let proc = created else {
+            throw ScribeError.captureStartFailed(status)
+        }
+        status = AudioDeviceStart(device, proc)
+        guard status == noErr else {
+            AudioDeviceDestroyIOProcID(device, proc)
+            throw ScribeError.captureStartFailed(status)
+        }
+        deviceID = device
+        procID = proc
+    }
+
+    public func stop() {
+        guard let proc = procID else { return }
+        AudioDeviceStop(deviceID, proc)
+        AudioDeviceDestroyIOProcID(deviceID, proc)
+        procID = nil
+    }
+
+    deinit {
+        stop()
+    }
+}
+```
+
+- [ ] **Step 3: Use it in `scribe-cli record`**
+
+In the `record` case, after `let engine = CaptureEngine(...)` and before `try engine.start()`, add:
+```swift
+        let keepAlive = OutputKeepAlive()
+        try keepAlive.start()
+```
+After `engine.stop()` and before `try writer.close()`, add:
+```swift
+        keepAlive.stop()
+```
+
+- [ ] **Step 4: Verify a silent recording now has frames**
+
+`swift build`, then with nothing playing: `.build/debug/scribe-cli record 5 <scratch dir>` and `afinfo <file> | grep -E "Data format|estimated duration"`. Expected: duration close to 5 s (previously 0 s). Then repeat Task 7's playback check once to confirm the system channel still reacts to playback and the silent-phase RMS of channel 1 is 0.
+
+- [ ] **Step 5: Run `scripts/test.sh`, commit**
+
+```bash
+git add Sources/ScribeCore/OutputKeepAlive.swift Sources/ScribeCore/CoreAudioProperties.swift Sources/scribe-cli/main.swift
+git commit -m "Add OutputKeepAlive so the tap aggregate clocks in silence
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+### Amendments to later tasks
+
+- **Task 8, `LiveCapture`:** add `private let keepAlive = OutputKeepAlive()`. `start()` becomes `try keepAlive.start(); try engine.start()`. `stop()` and `deinit` call `engine.stop()` then `keepAlive.stop()` before closing the writer. The `FakeCapture` tests are unaffected.
+- **Task 12:** watch `kAudioHardwarePropertyDefaultOutputDevice` as well (a second `DefaultDeviceWatcher` instance, or generalize `DefaultInputWatcher` to take the selector). On output change, `LiveCapture` calls `keepAlive.stop()` then `try? keepAlive.start()` so the aggregate keeps clocking; this is not an interruption.
+- **Task 13, smoke test:** add "Start a recording with nothing playing, wait 10 s, stop: file duration is about 10 s."
