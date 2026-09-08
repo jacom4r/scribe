@@ -31,6 +31,30 @@ case "devices":
         fail("devices failed: \(error)")
     }
 
+case "record":
+    guard args.count >= 2, let seconds = Double(args[1]), seconds > 0 else { fail(usage) }
+    let directory = URL(fileURLWithPath: args.count >= 3 ? args[2] : FileManager.default.currentDirectoryPath, isDirectory: true)
+    let url = directory.appendingPathComponent("scribe-\(Int(Date().timeIntervalSince1970)).wav")
+    do {
+        let tap = try ProcessTap()
+        let aggregate = try AggregateDevice(tap: tap)
+        print("Mic: \(aggregate.micName) @ \(aggregate.sampleRate) Hz; layout mic=\(aggregate.layout.micBuffers) system=\(aggregate.layout.systemBuffers)")
+
+        let writer = try WavWriter(url: url, inputSampleRate: aggregate.sampleRate)
+        let relay = InterruptionRelay()
+        relay.handler = { error in fail("interrupted: \(error.userMessage)") }
+        let engine = CaptureEngine(deviceID: aggregate.deviceID, layout: aggregate.layout, writer: writer, relay: relay)
+
+        try engine.start()
+        print("Recording \(Int(seconds))s to \(url.path) ... speak into the mic and play some audio.")
+        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+        engine.stop()
+        try writer.close()
+        print("Saved \(url.path)")
+    } catch {
+        fail("record failed: \(error)")
+    }
+
 default:
     fail(usage)
 }
