@@ -1,10 +1,28 @@
+import ScribeCore
 import SwiftUI
 
 struct MenuView: View {
     let state: AppState
 
     var body: some View {
+        if let error = state.lastError {
+            Text(error.userMessage)
+            if error == .permissionDenied {
+                Button("Open System Settings…") { state.openPrivacySettings() }
+            }
+            Divider()
+        }
+
+        if state.isRecording {
+            Button("Stop Recording") { state.toggle() }
+            Text("Recording  \(state.elapsedText)")
+        } else {
+            Button("Start Recording") { state.toggle() }
+        }
+
+        Divider()
         Button("Open Recordings Folder") { state.openRecordingsFolder() }
+        Button("Recording Permissions…") { state.openPrivacySettings() }
         Button("Quit Scribe") { state.quit() }
             .keyboardShortcut("q")
     }
