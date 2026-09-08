@@ -1,1 +1,9 @@
 .superpowers/
+.build/
+build/
+.swiftpm/
+*.p12
+*.pem
+.DS_Store
+*.xcodeproj
+*.xcworkspace
