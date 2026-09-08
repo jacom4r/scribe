@@ -20,6 +20,17 @@ case "tap":
         fail("tap failed: \(error)")
     }
 
+case "devices":
+    do {
+        let tap = try ProcessTap()
+        let aggregate = try AggregateDevice(tap: tap)
+        print("Mic: \(aggregate.micName)")
+        print("Aggregate device id=\(aggregate.deviceID) rate=\(aggregate.sampleRate) Hz")
+        print("Layout: mic buffers=\(aggregate.layout.micBuffers) system buffers=\(aggregate.layout.systemBuffers)")
+    } catch {
+        fail("devices failed: \(error)")
+    }
+
 default:
     fail(usage)
 }
