@@ -10,12 +10,14 @@ final class AppState {
     private(set) var lastError: ScribeError?
     private(set) var elapsedText = "0:00"
     private var timer: Timer?
+    private let notifier = Notifier()
 
     init(session: RecordingSession = RecordingSession()) {
         self.session = session
         session.onInterrupted = { [weak self] error, url in
             self?.recordingInterrupted(error, url: url)
         }
+        notifier.requestAuthorization()
     }
 
     var isRecording: Bool { session.isRecording }
@@ -61,13 +63,13 @@ final class AppState {
     // MARK: - Hooks Task 11 fills in
 
     private func recordingSaved(_ url: URL) {
-        // Task 11: notifier.recordingSaved(url)
+        notifier.recordingSaved(url)
     }
 
     private func recordingInterrupted(_ error: ScribeError, url: URL) {
         stopTimer()
         lastError = error
-        // Task 11: notifier.recordingStopped(error)
+        notifier.recordingStopped(error)
     }
 
     // MARK: - Timer
