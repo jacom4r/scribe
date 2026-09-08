@@ -45,10 +45,14 @@ case "record":
         relay.handler = { error in fail("interrupted: \(error.userMessage)") }
         let engine = CaptureEngine(deviceID: aggregate.deviceID, layout: aggregate.layout, writer: writer, relay: relay)
 
+        let keepAlive = OutputKeepAlive()
+        try keepAlive.start()
+
         try engine.start()
         print("Recording \(Int(seconds))s to \(url.path) ... speak into the mic and play some audio.")
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
         engine.stop()
+        keepAlive.stop()
         try writer.close()
         print("Saved \(url.path)")
     } catch {

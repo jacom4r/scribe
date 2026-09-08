@@ -17,6 +17,15 @@ enum CoreAudio {
         return id
     }
 
+    static func defaultOutputDevice() throws -> AudioDeviceID {
+        var addr = address(kAudioHardwarePropertyDefaultOutputDevice)
+        var id = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id)
+        guard status == noErr, id != kAudioObjectUnknown else { throw ScribeError.captureStartFailed(status) }
+        return id
+    }
+
     static func uid(of object: AudioObjectID) throws -> String {
         var addr = address(kAudioDevicePropertyDeviceUID)
         var value: Unmanaged<CFString>?
