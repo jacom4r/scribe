@@ -1,8 +1,15 @@
-import Foundation
+import SwiftUI
 
 @main
-struct ScribeApp {
-    static func main() {
-        print("Scribe placeholder; replaced in Task 9")
+struct ScribeApp: App {
+    @State private var appState = AppState()
+
+    var body: some Scene {
+        MenuBarExtra {
+            MenuView(state: appState)
+        } label: {
+            Image(nsImage: MenuBarIcon.image(recording: appState.isRecording))
+        }
+        .menuBarExtraStyle(.menu)
     }
 }
