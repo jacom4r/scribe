@@ -13,7 +13,7 @@ public protocol CaptureFactory {
 }
 
 /// The real thing: tap + aggregate + writer + engine for one file.
-/// Teardown order matters: engine, keepalive, writer, aggregate, then tap.
+/// Teardown order matters: watchers, engine, keepalive, writer, aggregate, then tap.
 final class LiveCapture: AudioCapturing {
     private var tap: ProcessTap?
     private var aggregate: AggregateDevice?
@@ -21,6 +21,8 @@ final class LiveCapture: AudioCapturing {
     private let engine: CaptureEngine
     private let relay = InterruptionRelay()
     private let keepAlive = OutputKeepAlive()
+    private let inputWatcher: DefaultDeviceWatcher
+    private let outputWatcher: DefaultDeviceWatcher
 
     var onInterrupted: (@Sendable (ScribeError) -> Void)? {
         didSet { relay.handler = onInterrupted }
@@ -35,14 +37,35 @@ final class LiveCapture: AudioCapturing {
         self.writer = writer
         self.engine = CaptureEngine(
             deviceID: aggregate.deviceID, layout: aggregate.layout, writer: writer, relay: relay)
+
+        // Both closures capture the objects they use, not `self`, which is not
+        // fully initialized here.
+        let relay = self.relay
+        self.inputWatcher = .defaultInput {
+            relay.fire(.inputDeviceChanged)
+        }
+        // The keepalive is pinned to the output device it started on, so a new
+        // default output would stall the aggregate. Restarting it moves the
+        // silent IO proc to the new device; this is not an interruption, so the
+        // relay stays quiet. No locking: this block runs on the main queue and
+        // `LiveCapture` only touches `keepAlive` on the main thread.
+        let keepAlive = self.keepAlive
+        self.outputWatcher = .defaultOutput {
+            keepAlive.stop()
+            try? keepAlive.start()
+        }
     }
 
     func start() throws {
         try keepAlive.start()
         try engine.start()
+        try inputWatcher.start()
+        try outputWatcher.start()
     }
 
     func stop() throws {
+        inputWatcher.stop()
+        outputWatcher.stop()
         engine.stop()
         keepAlive.stop()
         defer {
@@ -53,6 +76,8 @@ final class LiveCapture: AudioCapturing {
     }
 
     deinit {
+        inputWatcher.stop()
+        outputWatcher.stop()
         engine.stop()
         keepAlive.stop()
         try? writer.close()

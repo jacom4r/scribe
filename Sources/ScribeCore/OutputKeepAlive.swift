@@ -8,7 +8,10 @@ import Foundation
 /// includes Scribe itself, so a zero-filled output IO proc on the default output
 /// device is enough to keep the aggregate running, and adds nothing audible.
 /// Start before `CaptureEngine.start()`; stop after `CaptureEngine.stop()`.
-public final class OutputKeepAlive {
+///
+/// `@unchecked Sendable`: every access is on the main thread (`LiveCapture` and
+/// the default-output listener block, which runs on the main queue).
+public final class OutputKeepAlive: @unchecked Sendable {
     private var deviceID = AudioDeviceID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
 
