@@ -45,22 +45,27 @@ public final class RecordingSession {
         guard case .idle = state else { throw ScribeError.alreadyRecording }
 
         let url = try store.newRecordingURL(at: now)
-        let capture = try factory.makeCapture(url: url)
-        capture.onInterrupted = { [weak self] error in
-            MainActor.assumeIsolated {
-                self?.handleInterruption(error)
-            }
-        }
 
+        // `makeCapture` is inside the `do` so that a failure there — it may
+        // already have created the file — unwinds the file on disk too.
+        // `made` stays nil in that case, so there is nothing to stop.
+        var made: (any AudioCapturing)?
         do {
+            let capture = try factory.makeCapture(url: url)
+            made = capture
+            capture.onInterrupted = { [weak self] error in
+                MainActor.assumeIsolated {
+                    self?.handleInterruption(error)
+                }
+            }
             try capture.start()
         } catch {
-            try? capture.stop()
+            try? made?.stop()
             try? FileManager.default.removeItem(at: url)
             throw error
         }
 
-        self.capture = capture
+        self.capture = made
         state = .recording(since: now, url: url)
         return url
     }

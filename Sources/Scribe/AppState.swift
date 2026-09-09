@@ -17,6 +17,7 @@ final class AppState {
         session.onInterrupted = { [weak self] error, url in
             self?.recordingInterrupted(error, url: url)
         }
+        AppDelegate.terminationHandler = { [weak self] in self?.finalizeForTermination() }
         notifier.requestAuthorization()
     }
 
@@ -53,11 +54,17 @@ final class AppState {
     }
 
     func quit() {
-        if session.isRecording {
-            _ = try? session.stop()
-            stopTimer()
-        }
+        finalizeForTermination()
         NSApp.terminate(nil)
+    }
+
+    /// Flushes an in-progress recording to disk before the process goes away.
+    /// Runs both from the menu's Quit and from `AppDelegate`'s termination
+    /// handler; the guard makes the second call a no-op.
+    private func finalizeForTermination() {
+        guard session.isRecording else { return }
+        _ = try? session.stop()
+        stopTimer()
     }
 
     // MARK: - Hooks Task 11 fills in
@@ -76,9 +83,14 @@ final class AppState {
 
     private func startTimer() {
         tick()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        // `.common` mode, not `Timer.scheduledTimer`'s `.default`: an open
+        // NSMenu runs the run loop in event-tracking mode, which would
+        // otherwise freeze the elapsed-time label while the menu is showing.
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     private func stopTimer() {

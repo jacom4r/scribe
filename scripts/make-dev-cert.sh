@@ -47,4 +47,6 @@ security import "$TMP/scribe-dev.p12" -k "$KEYCHAIN" -P scribe \
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$TMP/cert.pem"
 
 echo "Created '$NAME'. The first codesign may show a keychain prompt; choose 'Always Allow'."
-security find-identity -v -p codesigning | grep "$NAME"
+# `|| true`: find-identity lists only trusted identities, and trust may not
+# be reflected yet, so a nonzero grep here must not fail the script.
+security find-identity -v -p codesigning | grep "$NAME" || true

@@ -4,6 +4,14 @@ import Foundation
 
 /// Writes interleaved Float32 stereo audio to a 16-bit PCM stereo WAV at 48 kHz.
 /// `writeAsync` is safe on the real-time audio thread once `prime()` has run.
+///
+/// Synchronization contract (this is what justifies `@unchecked Sendable`):
+/// `file` is read on the real-time thread by `writeAsync` and cleared by
+/// `close()` without any lock, by design — a lock on the audio thread is not
+/// real-time safe. Callers must therefore stop the IO proc before closing:
+/// `CaptureEngine.stop()` is synchronous and returns only once Core Audio has
+/// torn the proc down, so no `writeAsync` can be in flight after it. Calling
+/// `close()` while an IO proc is still running is a use-after-free.
 public final class WavWriter: @unchecked Sendable {
     public static let fileSampleRate: Double = 48_000
 
@@ -64,6 +72,10 @@ public final class WavWriter: @unchecked Sendable {
     }
 
     /// Flushes pending async writes and finalizes the header. Idempotent.
+    ///
+    /// Not safe to call concurrently with `writeAsync`: stop the IO proc first
+    /// (`CaptureEngine.stop()`, which is synchronous). See the type's doc
+    /// comment for the full contract.
     public func close() throws {
         guard let file else { return }
         self.file = nil

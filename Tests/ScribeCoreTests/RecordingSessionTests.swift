@@ -8,9 +8,15 @@ final class FakeCapture: AudioCapturing {
     var started = false
     var stopped = false
     var startError: ScribeError?
+    /// Set by `FakeFactory`, so a failing `start()` can leave a real file
+    /// behind the way the live capture would.
+    var url: URL?
 
     func start() throws {
-        if let startError { throw startError }
+        if let startError {
+            if let url { try? Data().write(to: url) }
+            throw startError
+        }
         started = true
     }
 
@@ -26,7 +32,13 @@ final class FakeFactory: CaptureFactory {
 
     func makeCapture(url: URL) throws -> any AudioCapturing {
         lastURL = url
-        if let makeError { throw makeError }
+        // Create the file before failing: the live factory opens the WAV as
+        // part of construction, so a later throw can leave one on disk.
+        if let makeError {
+            try? Data().write(to: url)
+            throw makeError
+        }
+        capture.url = url
         return capture
     }
 }
@@ -83,6 +95,17 @@ final class FakeFactory: CaptureFactory {
         factory.makeError = .permissionDenied
 
         #expect(throws: ScribeError.permissionDenied) { try session.start() }
+        #expect(session.state == .idle)
+    }
+
+    @Test func factoryFailureRemovesFile() throws {
+        let (session, factory, _) = makeSession()
+        factory.makeError = .permissionDenied
+
+        #expect(throws: ScribeError.permissionDenied) { try session.start() }
+
+        let url = try #require(factory.lastURL)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(session.state == .idle)
     }
 
