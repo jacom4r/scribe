@@ -3,6 +3,10 @@
 Run after any change to `ScribeCore` capture code or the app target. Unit
 tests do not cover the audio path, so this is the only check that it works.
 
+**Status:** Completed 2026-09-14 against phase 1 (`phase1-recorder`). All
+steps passed; the only issue found is the known input-device hot-swap gap
+below (stops instead of continuing), confirmed after a week of daily use.
+
 Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
 
 ## CLI capture path
@@ -40,8 +44,9 @@ Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
 
 ## Known gaps (phase 1.5)
 
+- Input device hot-swap stops the recording instead of continuing. Top
+  priority for phase 1.5: the only complaint after a week of daily use.
 - A crash mid-recording leaves a WAV with an unfinished header.
-- Input device hot-swap stops the recording instead of continuing.
 - No global hotkey, no input device picker, no launch at login, no app icon.
 - Permission denial cannot be detected at start time on this machine; a
   denied tap records silence on the right channel. Use "Recording
