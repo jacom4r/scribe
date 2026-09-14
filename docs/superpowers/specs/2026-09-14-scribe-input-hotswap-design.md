@@ -99,9 +99,11 @@ protocol InputGraphBuilding {
 fake builder that records calls and can be made to fail; no hardware, no
 permissions.
 
-`AggregateDevice` itself is unchanged. It already resolves the current default
+`AggregateDevice` is almost unchanged. It already resolves the current default
 input at init and recomputes `layout` from the new mic's stream counts, which is
-exactly what a rebuild needs.
+exactly what a rebuild needs. It gains one stored property, `micDeviceID`, so the
+graph can report which device it was actually built around — step 1's filter
+compares against that rather than re-resolving and hoping it matches.
 
 ## Swap sequence
 
