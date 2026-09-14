@@ -7,8 +7,8 @@
 
 When the default input device changes mid-recording, keep recording instead of
 stopping. The recording continues into the same WAV file, across a mic with a
-different channel count and a different sample rate, with the gap in capture
-padded so the file's duration still matches wall-clock time.
+different channel count and a different sample rate. Audio resumes into the same
+file as soon as the new device is running.
 
 Today this case ends the recording: `LiveCapture`'s input watcher fires
 `.inputDeviceChanged`, `RecordingSession.handleInterruption` stops and saves,
@@ -23,7 +23,7 @@ get their own cycle.
 | Decision | Choice | Why |
 |---|---|---|
 | Swap policy | Follow the system default input wherever it goes | Matches what phase 1 already does at start time. A pinned-device mode belongs with the input device picker, not here. |
-| Capture gap | Pad with silence to wall-clock elapsed time | File duration stays equal to real elapsed time, so phase 2 transcription and diarization timestamps remain true. Concatenating instead would shift everything after a swap earlier, compounding per swap. |
+| Capture gap | Concatenate; the dead window is simply absent from the file | Padding to wall-clock time was considered and dropped as unnecessary complexity: it needs a monotonic clock, a `writeSilence` path in the writer, and cancellation handling, to correct a sub-second offset for a phase 2 consumer that is not yet specced. Revisit if phase 2 turns out to need true timestamps. |
 | Rate changes | `WavWriter` pins its file client format at 48 kHz and owns an `AudioConverterRef` | Forced by the spike: `ExtAudioFile` refuses a client format change mid-file, and an aggregate's nominal rate cannot be overridden. See below. |
 | Structure | Extract the rebuildable graph behind a protocol | Swap correctness is the whole feature and needs unit tests; today nothing below `AudioCapturing` can be faked. |
 | Failure behavior | Every failure path falls back to stop-and-save | A broken swap is then never worse than current behavior. |
@@ -34,9 +34,10 @@ Rejected alternatives:
 - **Mutating the live aggregate** via `kAudioAggregateDevicePropertyFullSubDeviceList`
   to exchange the mic sub-device without teardown. It would shrink the gap, but
   changes the clock master and the buffer list's shape underneath a running IO
-  proc, and is the least-documented of the options. Since the gap is padded, its
-  length is comfort rather than correctness — not worth the risk. Available later
-  as an optimization if swaps prove disruptive in practice.
+  proc, and is the least-documented of the options. Not worth the risk for a
+  first implementation. This is now the natural optimization if the dropped
+  audio turns out to be noticeable in practice, since a shorter gap is the only
+  lever left once padding is off the table.
 - **Stopping when only the sample rate changes.** Disproved by the spike: the
   current default input is AirPods Pro locked to 24 kHz and the built-in mic runs
   48 kHz, so the headline swap crosses rates every time. This fallback would fire
@@ -118,35 +119,34 @@ queue, so swaps cannot overlap.
    indefinitely, leaving the recording on a mic that is already gone.
 3. **Stop.** `graph.stop()`. `CaptureEngine.stop()` is synchronous and returns only
    once Core Audio has torn the proc down, so no `writeAsync` is in flight
-   afterward. Record the gap start from a monotonic clock.
+   afterward.
 4. **Rebuild.** `builder.makeGraph()`. The new `AggregateDevice` picks up the new
    default input and computes a fresh `layout`.
 5. **Retune.** If the new graph's `sampleRate` differs from the writer's current
    input rate, `writer.setInputSampleRate(_:)`.
-6. **Pad.** `writer.writeSilence(duration:)` for the measured gap.
-7. **Start.** `graph.start()`.
-8. **Publish.** Report the new `micName` on the main queue.
+6. **Start.** `graph.start()`.
+7. **Publish.** Report the new `micName` on the main queue.
 
-Steps 4, 5 and 7 can each throw. Any throw falls back to stop-and-save: fire the
+Steps 4, 5 and 6 can each throw. Any throw falls back to stop-and-save: fire the
 relay once, which routes through the existing `RecordingSession.handleInterruption`
 path and keeps the partial file.
 
-### Gap accounting
+### The gap
 
-The gap is measured from step 3 to just before step 7 and padded in step 6.
-Silence must be written before the new engine starts, because once it starts it
-writes from the real-time thread and ordering would no longer be deterministic.
+Nothing is captured between step 3 and step 6, on either channel, since the
+system tap lives inside the same aggregate as the mic. The dead window covers an
+aggregate teardown, an aggregate build, and an `AudioDeviceStart`; on Bluetooth
+it is the longest. That audio is lost and the file is correspondingly shorter
+than the elapsed recording time.
 
-The residual error is the IO proc's own start latency inside `AudioDeviceStart`,
-which is genuine dead time but cannot be measured from our side. It is bounded and
-small relative to the teardown and rebuild it follows. This is documented rather
-than papered over; the spec does not claim the padding is exact.
-
-`writeSilence` goes through the existing primed async path with a zeroed 48 kHz
-buffer, chunked to stay under the async ring buffer limit — the spike hit
-`kExtAudioFileError_AsyncWriteTooLarge` writing a full second at once, and a long
-Bluetooth swap could produce a comparable span. It is called only while no IO proc
-is running.
+The consequence is that every timestamp after a swap sits slightly earlier in
+the file than it occurred in real time, and the error accumulates across swaps.
+This is accepted deliberately. If phase 2's diarization turns out to need true
+timestamps, the fix is to pad the gap with silence — which needs a monotonic
+clock around the swap, a `writeSilence` path on the writer, and cancellation
+handling so a pending pad cannot fire against a closed file. That was specced
+and dropped as complexity out of proportion to a sub-second offset for a
+consumer that does not exist yet.
 
 ## WavWriter changes
 
@@ -158,15 +158,12 @@ once written, the writer takes ownership of the conversion instead:
 - An internal `AudioConverterRef` converts from the current input rate to 48 kHz.
 - `setInputSampleRate(_:)` rebuilds that converter. When the new rate equals the old
   one it is a no-op.
-- `writeSilence(duration:)` writes zeroed 48 kHz frames directly, bypassing the
-  converter — silence needs no resampling, and this keeps gap length exact and
-  independent of whichever mic is attached.
 - `inputSampleRate` becomes `private(set)` state rather than an init-only constant.
 
-Both new methods carry the same precondition as the existing `close()`: **the caller
-must have stopped the engine first.** That contract is already spelled out in the
-header comment on `WavWriter` and justifies its `@unchecked Sendable`; these methods
-extend it rather than introducing a new rule. `CaptureEngine.stop()` being
+`setInputSampleRate(_:)` carries the same precondition as the existing `close()`:
+**the caller must have stopped the engine first.** That contract is already spelled out in the
+header comment on `WavWriter` and justifies its `@unchecked Sendable`; this method
+extends it rather than introducing a new rule. `CaptureEngine.stop()` being
 synchronous is what makes it satisfiable.
 
 Real-time implications, and the reason this is the most delicate part of the change:
@@ -202,9 +199,9 @@ spec, which reads "Session stops and saves what it has. Hot-swap is out of scope
 
 | Situation | Behavior |
 |---|---|
-| Default input changes to a different device | Coalesce, rebuild, pad, continue. Menu mic name updates. No notification. |
-| Watcher fires but the default resolves to the same device | Ignored. No rebuild, no gap. |
-| Several changes in a burst | One rebuild, one gap. |
+| Default input changes to a different device | Coalesce, rebuild, continue. Menu mic name updates. No notification. |
+| Watcher fires but the default resolves to the same device | Ignored. No rebuild, so no audio is dropped. |
+| Several changes in a burst | One rebuild, one dropped window rather than several. |
 | Last input device removed, no replacement | `CoreAudio.defaultInputDevice()` throws. Stop and save with `.inputDeviceChanged`, as today. |
 | New aggregate fails to build | Stop and save. Partial file kept. |
 | `setInputSampleRate` fails | Stop and save. |
@@ -238,8 +235,6 @@ Unit tests, no hardware and no permissions, consistent with the existing suite.
 
 `WavWriterTests` (extended):
 
-- `writeSilence(duration:)` adds exactly `duration × 48000` frames, rounded, and
-  those frames read back as zero on both channels.
 - A 24 kHz to 48 kHz round trip: write a known tone at 24 kHz, read back at 48 kHz,
   assert the output frame count doubles and the tone survives.
 - `setInputSampleRate` mid-file, then write, then close: the file is valid, the
@@ -256,12 +251,13 @@ Unit tests, no hardware and no permissions, consistent with the existing suite.
 Manual checks added to `docs/smoke-test.md`:
 
 - Start on AirPods, disconnect them mid-recording, confirm the recording continues
-  on the built-in mic, the menu name updates, and the file has a short silence
-  rather than ending. This is the 24 kHz to 48 kHz path.
+  on the built-in mic and the menu name updates, rather than the recording ending.
+  This is the 24 kHz to 48 kHz path.
 - Start on the built-in mic, connect AirPods mid-recording, confirm the reverse.
 - Unplug a USB mic mid-recording.
-- For each: file duration is within a second of wall-clock recording time, and both
-  channels still carry audio after the swap.
+- For each: both channels still carry audio after the swap, and the audible seam is
+  short enough not to lose a word of speech. Note the actual gap length observed —
+  it is the input to any later decision about padding or live sub-device mutation.
 
 The smoke test's existing "Known gaps (phase 1.5)" entry for hot-swap is removed
 when this ships.
@@ -272,5 +268,6 @@ when this ships.
 - A pinned input device or manual device selection — that arrives with the input
   device picker.
 - Live sub-device mutation as a gap optimization.
+- Padding the capture gap to wall-clock time; deliberately dropped, revisit with phase 2.
 - Any change to `OutputKeepAlive`, the tap, the downmix, or the file format.
 - Output device hot-swap, which already works.
