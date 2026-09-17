@@ -65,11 +65,11 @@ Sources/ScribeCore            (no new dependencies)
   TurnAssembler.swift          [TimedWord] -> [Turn]
   TranscriptRenderer.swift     [Turn] + metadata -> Markdown
   TranscriptionPipeline.swift  one WAV URL -> one .md, given a SpeechEngine
+  TranscriptionQueue.swift     actor: FIFO of jobs, observable state
   ScribeError.swift            + modelsUnavailable, transcriptionFailed
 
 Sources/ScribeTranscription   (depends on ScribeCore, FluidAudio)
   FluidAudioEngine.swift       SpeechEngine conformance
-  TranscriptionQueue.swift     actor: FIFO of jobs, observable state
 
 Sources/Scribe                (depends on both)
   AppState.swift               enqueue on save/interrupt, observe queue
@@ -339,8 +339,9 @@ models, no audio hardware:
   track yields no "Me"; an engine
   error yields `transcriptionFailed` and no file; an existing `.md` is
   replaced.
-- `TranscriptionQueueTests` with a fake engine that awaits a continuation
-  per call: two enqueued jobs run in order, one at a time; the observed
+- `TranscriptionQueueTests` with a fake engine whose calls take a few
+  milliseconds and count concurrent callers: two enqueued jobs run in order,
+  one at a time; the observed
   state sequence is `preparingModels, idle, transcribing(a), idle,
   transcribing(b), idle`; a prepare failure at launch followed by success on
   enqueue transcribes normally; a job failure yields `failed` then a later
