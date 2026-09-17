@@ -1635,15 +1635,15 @@ Expected: `Build complete!`.
 
 There is no synthetic input that exercises both ASR and diarization, and recording one needs TCC consent, so use a recording the user already has. The 7 minute one below is the shortest with speech on both channels:
 
-Run:
+Run (keep the original filename so the title parses):
 ```bash
-cp "$HOME/Music/Scribe/2026-09-14 13-44 Recording.wav" /tmp/scribe-smoke.wav
-time .build/debug/scribe-cli transcribe /tmp/scribe-smoke.wav
-head -6 /tmp/scribe-smoke.md
-grep -c '^\*\*' /tmp/scribe-smoke.md
-rm /tmp/scribe-smoke.wav /tmp/scribe-smoke.md
+cp "$HOME/Music/Scribe/2026-09-14 13-44 Recording.wav" "/tmp/2026-09-14 13-44 Recording.wav"
+time .build/debug/scribe-cli transcribe "/tmp/2026-09-14 13-44 Recording.wav"
+head -6 "/tmp/2026-09-14 13-44 Recording.md"
+grep -c '^\*\*' "/tmp/2026-09-14 13-44 Recording.md"
+rm "/tmp/2026-09-14 13-44 Recording.wav" "/tmp/2026-09-14 13-44 Recording.md"
 ```
-Expected: on first run, `models ready in` around 90 s (download plus CoreML compile) and a `Downloading` progress log from FluidAudio; on later runs under 1 s. `transcribed in` under 15 s for this 7 minute file. The head shows the `# Meeting 2026-09-14 13:44` title, `Duration: 7:07`, and a `Speakers:` line naming `Me` and three numbered speakers. The block count should be in the low tens (the spike got 15). A benign `E5RT encountered an STL exception` line on stderr at exit is expected.
+Expected: on first run, `models ready in` around 90 s (download plus CoreML compile) and a `Downloading` progress log from FluidAudio; the first run of a freshly built binary can also take 10 to 15 s for CoreML compilation with cached models; later runs under 1 s. `transcribed in` under 15 s for this 7 minute file. The head shows the `# Meeting 2026-09-14 13:44` title, `Duration: 7:07`, and a `Speakers:` line naming `Me` and three numbered speakers. The block count should be in the low tens (the spike got 15). A benign `E5RT encountered an STL exception` line on stderr at exit is expected.
 
 Report timings and counts only. Do not paste transcript lines anywhere.
 
