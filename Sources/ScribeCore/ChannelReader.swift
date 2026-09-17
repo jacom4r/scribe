@@ -55,8 +55,19 @@ public enum ChannelReader {
             throw ScribeError.transcriptionFailed("couldn't set up resampling (error \(status))")
         }
 
+        var fileFrames: Int64 = 0
+        var lengthSize = UInt32(MemoryLayout<Int64>.size)
+        status = ExtAudioFileGetProperty(file, kExtAudioFileProperty_FileLengthFrames, &lengthSize, &fileFrames)
+        guard status == noErr else {
+            throw ScribeError.transcriptionFailed("couldn't read the length of \(url.lastPathComponent) (error \(status))")
+        }
+        // One exact reservation. Reserving per block would reallocate and copy
+        // both arrays on every block: 40 s and 8.7 GB on a 71-minute recording.
+        let expectedFrames = Int(Double(fileFrames) * sampleRate / fileFormat.mSampleRate) + blockFrames
         var left: [Float] = []
         var right: [Float] = []
+        left.reserveCapacity(expectedFrames)
+        right.reserveCapacity(expectedFrames)
         var scratch = [Float](repeating: 0, count: blockFrames * 2)
         while true {
             var frames = UInt32(blockFrames)
@@ -74,8 +85,6 @@ public enum ChannelReader {
             }
             if frames == 0 { break }
             let n = Int(frames)
-            left.reserveCapacity(left.count + n)
-            right.reserveCapacity(right.count + n)
             for f in 0..<n {
                 left.append(min(max(scratch[2 * f], -1), 1))
                 right.append(min(max(scratch[2 * f + 1], -1), 1))
