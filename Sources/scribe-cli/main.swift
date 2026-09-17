@@ -1,7 +1,8 @@
 import Foundation
 import ScribeCore
+import ScribeTranscription
 
-let usage = "usage: scribe-cli tap | devices | record <seconds> [directory]"
+let usage = "usage: scribe-cli tap | devices | record <seconds> [directory] | transcribe <wav>"
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
@@ -47,6 +48,27 @@ case "record":
     } catch {
         fail("record failed: \(error)")
     }
+
+case "transcribe":
+    guard args.count == 2 else { fail(usage) }
+    let wavURL = URL(fileURLWithPath: args[1])
+    Task {
+        do {
+            let engine = FluidAudioEngine()
+            var started = Date()
+            try await engine.prepare()
+            FileHandle.standardError.write(Data(String(format: "models ready in %.1f s\n", Date().timeIntervalSince(started)).utf8))
+
+            started = Date()
+            let out = try await TranscriptionPipeline(engine: engine).run(wavURL)
+            FileHandle.standardError.write(Data(String(format: "transcribed in %.1f s\n", Date().timeIntervalSince(started)).utf8))
+            print(out.path)
+            exit(0)
+        } catch {
+            fail("transcribe failed: \((error as? ScribeError)?.userMessage ?? "\(error)")")
+        }
+    }
+    RunLoop.main.run()
 
 default:
     fail(usage)
