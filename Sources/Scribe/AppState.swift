@@ -22,6 +22,7 @@ final class AppState {
     }
 
     var isRecording: Bool { session.isRecording }
+    var micName: String? { session.micName }
     var recordingsDirectory: URL { session.store.directory }
 
     /// Start if idle, stop if recording. Errors land in `lastError`.

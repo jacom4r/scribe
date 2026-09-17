@@ -12,6 +12,8 @@ public final class RecordingSession {
     }
 
     public private(set) var state: State = .idle
+    /// The microphone currently being recorded, or nil when idle.
+    public private(set) var micName: String?
     public let store: RecordingStore
 
     /// Called when a recording stops on its own (device change, write failure).
@@ -58,6 +60,11 @@ public final class RecordingSession {
                     self?.handleInterruption(error)
                 }
             }
+            capture.onInputChanged = { [weak self] name in
+                MainActor.assumeIsolated {
+                    self?.micName = name
+                }
+            }
             try capture.start()
         } catch {
             try? made?.stop()
@@ -66,6 +73,7 @@ public final class RecordingSession {
         }
 
         self.capture = made
+        micName = made?.micName
         state = .recording(since: now, url: url)
         return url
     }
@@ -77,6 +85,7 @@ public final class RecordingSession {
         }
         state = .finalizing
         self.capture = nil
+        micName = nil
         defer { state = .idle }
         try capture.stop()
         return url

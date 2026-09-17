@@ -5,6 +5,8 @@ import Testing
 
 final class FakeCapture: AudioCapturing {
     var onInterrupted: (@Sendable (ScribeError) -> Void)?
+    var onInputChanged: (@Sendable (String) -> Void)?
+    var micName = "Fake Microphone"
     var started = false
     var stopped = false
     var startError: ScribeError?
@@ -145,6 +147,49 @@ final class FakeFactory: CaptureFactory {
         factory.capture.onInterrupted?(.inputDeviceChanged)
 
         #expect(calls == 0)
+        #expect(session.state == .idle)
+    }
+
+    @Test func publishesTheMicNameWhileRecording() throws {
+        let (session, factory, _) = makeSession()
+        factory.capture.micName = "AirPods"
+
+        try session.start()
+
+        #expect(session.micName == "AirPods")
+    }
+
+    @Test func updatesTheMicNameOnSwap() throws {
+        let (session, factory, _) = makeSession()
+        factory.capture.micName = "AirPods"
+        try session.start()
+
+        factory.capture.onInputChanged?("MacBook Pro Microphone")
+
+        #expect(session.micName == "MacBook Pro Microphone")
+        #expect(session.isRecording)
+    }
+
+    @Test func clearsTheMicNameOnStop() throws {
+        let (session, factory, _) = makeSession()
+        factory.capture.micName = "AirPods"
+        try session.start()
+
+        _ = try session.stop()
+
+        #expect(session.micName == nil)
+    }
+
+    @Test func clearsTheMicNameWhenASwapFails() throws {
+        let (session, factory, _) = makeSession()
+        factory.capture.micName = "AirPods"
+        try session.start()
+
+        // A swap that cannot complete reports through the same interruption
+        // path as any other failure.
+        factory.capture.onInterrupted?(.aggregateCreationFailed(-1))
+
+        #expect(session.micName == nil)
         #expect(session.state == .idle)
     }
 }

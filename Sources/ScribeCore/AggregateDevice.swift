@@ -13,6 +13,7 @@ public final class AggregateDevice {
     public let layout: InputLayout
     public let sampleRate: Double
     public let micName: String
+    public let micDeviceID: AudioDeviceID
     private let tap: ProcessTap
 
     public init(tap: ProcessTap) throws {
@@ -21,6 +22,7 @@ public final class AggregateDevice {
         let micUID = try CoreAudio.uid(of: mic)
         let micStreams = try CoreAudio.inputStreamChannelCounts(of: mic)
         micName = CoreAudio.name(of: mic)
+        micDeviceID = mic
 
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey as String: "Scribe Recorder",

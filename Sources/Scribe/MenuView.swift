@@ -16,6 +16,9 @@ struct MenuView: View {
         if state.isRecording {
             Button("Stop Recording") { state.toggle() }
             Text("Recording  \(state.elapsedText)")
+            if let micName = state.micName {
+                Text(micName)
+            }
         } else {
             Button("Start Recording") { state.toggle() }
         }

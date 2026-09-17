@@ -28,7 +28,7 @@ public enum ScribeError: Error, Equatable, Sendable {
         case .writeFailed(let status):
             return "Couldn't write the recording (error \(status))."
         case .inputDeviceChanged:
-            return "The microphone changed, so the recording was stopped."
+            return "No microphone is available, so the recording was stopped."
         case .notRecording:
             return "Not recording."
         case .alreadyRecording:
