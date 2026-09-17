@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import ScribeCore
+import ScribeTranscription
 
 @MainActor
 @Observable
@@ -9,16 +10,29 @@ final class AppState {
     let session: RecordingSession
     private(set) var lastError: ScribeError?
     private(set) var elapsedText = "0:00"
+    /// One line for the menu: preparing, transcribing, or the last failure. Nil when idle.
+    private(set) var transcriptionStatus: String?
     private var timer: Timer?
     private let notifier = Notifier()
+    private var queue: TranscriptionQueue!
 
-    init(session: RecordingSession = RecordingSession()) {
+    init(session: RecordingSession = RecordingSession(), engine: any SpeechEngine = FluidAudioEngine()) {
         self.session = session
         session.onInterrupted = { [weak self] error, url in
             self?.recordingInterrupted(error, url: url)
         }
         AppDelegate.terminationHandler = { [weak self] in self?.finalizeForTermination() }
         notifier.requestAuthorization()
+
+        queue = TranscriptionQueue(
+            engine: engine,
+            onStateChange: { [weak self] state in
+                Task { @MainActor in self?.transcriptionStateChanged(state) }
+            },
+            onJobFinished: { [weak self] wavURL, result in
+                Task { @MainActor in self?.transcriptionFinished(wavURL, result) }
+            })
+        Task { await queue.prepareModels() }
     }
 
     var isRecording: Bool { session.isRecording }
@@ -68,16 +82,46 @@ final class AppState {
         stopTimer()
     }
 
-    // MARK: - Hooks Task 11 fills in
+    // MARK: - Recording outcomes
 
     private func recordingSaved(_ url: URL) {
         notifier.recordingSaved(url)
+        enqueueTranscription(url)
     }
 
     private func recordingInterrupted(_ error: ScribeError, url: URL) {
         stopTimer()
         lastError = error
         notifier.recordingStopped(error)
+        enqueueTranscription(url)
+    }
+
+    // MARK: - Transcription
+
+    private func enqueueTranscription(_ url: URL) {
+        Task { await queue.enqueue(url) }
+    }
+
+    private func transcriptionStateChanged(_ state: TranscriptionQueue.State) {
+        switch state {
+        case .preparingModels:
+            transcriptionStatus = "Preparing transcription models…"
+        case .idle:
+            transcriptionStatus = nil
+        case .transcribing(let url):
+            transcriptionStatus = "Transcribing \(url.deletingPathExtension().lastPathComponent)…"
+        case .failed(let url, let error):
+            transcriptionStatus = "\(url.lastPathComponent): \(error.userMessage)"
+        }
+    }
+
+    private func transcriptionFinished(_ wavURL: URL, _ result: Result<URL, ScribeError>) {
+        switch result {
+        case .success(let mdURL):
+            notifier.transcriptSaved(mdURL)
+        case .failure(let error):
+            notifier.transcriptionFailed(error)
+        }
     }
 
     // MARK: - Timer

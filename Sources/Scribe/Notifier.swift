@@ -2,7 +2,7 @@ import Foundation
 import ScribeCore
 import UserNotifications
 
-/// Posts the two notifications Scribe sends: saved, and stopped-by-error.
+/// Posts Scribe's notifications: recording saved or stopped, transcript saved or failed.
 @MainActor
 final class Notifier {
     private let center = UNUserNotificationCenter.current()
@@ -17,6 +17,14 @@ final class Notifier {
 
     func recordingStopped(_ error: ScribeError) {
         post(title: "Recording stopped", body: error.userMessage)
+    }
+
+    func transcriptSaved(_ url: URL) {
+        post(title: "Transcript saved", body: url.lastPathComponent)
+    }
+
+    func transcriptionFailed(_ error: ScribeError) {
+        post(title: "Transcription failed", body: error.userMessage)
     }
 
     private func post(title: String, body: String) {

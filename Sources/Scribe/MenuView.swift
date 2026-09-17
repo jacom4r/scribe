@@ -23,6 +23,10 @@ struct MenuView: View {
             Button("Start Recording") { state.toggle() }
         }
 
+        if let status = state.transcriptionStatus {
+            Text(status)
+        }
+
         Divider()
         Button("Open Recordings Folder") { state.openRecordingsFolder() }
         Button("Recording Permissions…") { state.openPrivacySettings() }
