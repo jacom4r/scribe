@@ -15,7 +15,7 @@
 - **Minimum macOS 14.2.** Dev machine runs macOS 26.6.2, Swift 6.3.2 (Command Line Tools only, no Xcode.app).
 - **Run tests with `scripts/test.sh`, never bare `swift test`.** The wrapper adds Testing.framework's search path and rpath. It forwards arguments: `scripts/test.sh --filter TurnAssemblerTests`.
 - **Swift Testing, not XCTest.** Use `@Suite`, `@Test`, `#expect`, `#require`, `#expect(throws:)`.
-- **FluidAudio is pinned `exact: "0.15.7"` with `traits: []`.** Never `from:`. The empty trait set drops a 49 MB Rust binary that only TTS uses.
+- **FluidAudio is pinned `exact: "0.15.7"` with `traits: []`.** Never `from:`. The empty trait set keeps a 49 MB Rust binary that only TTS uses out of the link (SwiftPM still fetches it into `.build/artifacts/` at resolution; that is expected).
 - **Only `Sources/ScribeTranscription` may `import FluidAudio`.** `ScribeCore` and `ScribeCoreTests` stay dependency-free so unit tests never download or load models.
 - **The FluidAudio README is out of date.** At 0.15.7 the batch call is `AsrManager.transcribe(_:decoderState:)`; there is no `source:` overload. Words come from the public free function `buildWordTimings(from:)`. The diarizer throws `OfflineDiarizationError.noSpeechDetected` (no payload) on speech-free audio.
 - **Model download needs the network and writes to `~/Library/Application Support/FluidAudio/Models/`** (472 MB). If a subagent runs under a sandbox, that run needs the sandbox disabled. Unit tests never need it.
@@ -117,7 +117,7 @@ import ScribeCore
 - [ ] **Step 3: Build everything**
 
 Run: `swift build 2>&1 | tail -5`
-Expected: `Build complete!`. The first build fetches FluidAudio and compiles it; allow 5 to 10 minutes. It needs the network. There must be no `Downloading ... NemoTextProcessing.xcframework.zip` line; if there is, the `traits: []` did not take and the tools version line is wrong.
+Expected: `Build complete!`. The first build fetches FluidAudio and compiles it; allow 5 to 10 minutes. It needs the network. SwiftPM still downloads `NemoTextProcessing.xcframework.zip` into `.build/artifacts/` at resolution time regardless of traits (a SwiftPM behaviour, not a manifest error); what `traits: []` guarantees is that the binary is not compiled or linked. Verify that instead: `nm .build/debug/scribe-cli | grep -c text_processing_rs` must print `0`.
 
 - [ ] **Step 4: Run the existing tests**
 
