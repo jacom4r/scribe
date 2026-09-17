@@ -12,6 +12,10 @@ public enum ScribeError: Error, Equatable, Sendable {
     case inputDeviceChanged
     case notRecording
     case alreadyRecording
+    /// Model download or load failed. The string is the underlying error's description.
+    case modelsUnavailable(String)
+    /// Anything else that stops a transcript from being written.
+    case transcriptionFailed(String)
 
     public var userMessage: String {
         switch self {
@@ -33,6 +37,10 @@ public enum ScribeError: Error, Equatable, Sendable {
             return "Not recording."
         case .alreadyRecording:
             return "Already recording."
+        case .modelsUnavailable(let detail):
+            return "Transcription models couldn't be loaded (\(detail))."
+        case .transcriptionFailed(let detail):
+            return "Transcription failed (\(detail))."
         }
     }
 }
