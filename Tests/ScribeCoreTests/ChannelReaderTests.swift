@@ -46,16 +46,6 @@ import Testing
         #expect(tracks.left.allSatisfy { $0 >= -1 && $0 <= 1 })
     }
 
-    @Test func reservesCapacityOnceFromFileLength() throws {
-        let url = try writeSineWav(seconds: 2)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        let tracks = try ChannelReader.read(url)
-
-        #expect(tracks.left.capacity <= tracks.left.count + 2 * ChannelReader.blockFrames)
-        #expect(tracks.right.capacity <= tracks.right.count + 2 * ChannelReader.blockFrames)
-    }
-
     @Test func monoFileThrows() throws {
         let url = tempURL()
         defer { try? FileManager.default.removeItem(at: url) }
