@@ -14,15 +14,20 @@ final class Log<T: Sendable>: @unchecked Sendable {
 actor SlowEngine: SpeechEngine {
     var prepareFailuresRemaining = 0
     var transcribeFailuresRemaining = 0
+    var prepareDelayMilliseconds = 0
     private(set) var prepareCalls = 0
     private(set) var active = 0
     private(set) var maxActive = 0
 
     func setPrepareFailures(_ n: Int) { prepareFailuresRemaining = n }
     func setTranscribeFailures(_ n: Int) { transcribeFailuresRemaining = n }
+    func setPrepareDelay(milliseconds: Int) { prepareDelayMilliseconds = milliseconds }
 
     func prepare() async throws {
         prepareCalls += 1
+        if prepareDelayMilliseconds > 0 {
+            try? await Task.sleep(for: .milliseconds(prepareDelayMilliseconds))
+        }
         if prepareFailuresRemaining > 0 {
             prepareFailuresRemaining -= 1
             throw ScribeError.modelsUnavailable("offline")
@@ -108,6 +113,21 @@ func eventually(_ timeout: TimeInterval = 3, _ condition: @Sendable () async -> 
         #expect(await h.engine.prepareCalls == 1)
     }
 
+    @Test func enqueueDuringLaunchPrepareWaitsAndPreparesOnce() async throws {
+        let h = try Harness()
+        defer { h.cleanup() }
+        await h.engine.setPrepareDelay(milliseconds: 100)
+        let a = h.wav("a")
+
+        await h.queue.prepareModels()
+        await h.queue.enqueue(a)          // arrives while the launch prepare is in flight
+
+        try #require(await eventually { h.finished.all.count == 1 })
+        #expect(await h.engine.prepareCalls == 1)
+        if case .success = h.finished.all[0].1 {} else { Issue.record("expected success") }
+        #expect(h.states.all == [.preparingModels, .transcribing(a), .idle])
+    }
+
     @Test func prepareFailureAtLaunchRetriesOnEnqueue() async throws {
         let h = try Harness()
         defer { h.cleanup() }
@@ -118,7 +138,7 @@ func eventually(_ timeout: TimeInterval = 3, _ condition: @Sendable () async -> 
 
         let a = h.wav("a")
         await h.queue.enqueue(a)
-        #expect(await eventually { h.finished.all.count == 1 })
+        try #require(await eventually { h.finished.all.count == 1 })
         #expect(await h.engine.prepareCalls == 2)
         if case .success = h.finished.all[0].1 {} else { Issue.record("expected success after retry") }
     }
@@ -132,7 +152,7 @@ func eventually(_ timeout: TimeInterval = 3, _ condition: @Sendable () async -> 
         await h.queue.enqueue(a)
         await h.queue.enqueue(b)
 
-        #expect(await eventually { h.finished.all.count == 2 })
+        try #require(await eventually { h.finished.all.count == 2 })
         #expect(h.states.all == [
             .transcribing(a), .failed(a, .transcriptionFailed("boom")), .transcribing(b), .idle,
         ])
@@ -149,7 +169,7 @@ func eventually(_ timeout: TimeInterval = 3, _ condition: @Sendable () async -> 
 
         await h.queue.enqueue(a)
 
-        #expect(await eventually { h.finished.all.count == 1 })
+        try #require(await eventually { h.finished.all.count == 1 })
         if case .failed(let url, .modelsUnavailable) = h.states.all.last { #expect(url == a) } else { Issue.record("expected failed(modelsUnavailable), got \(h.states.all)") }
     }
 }

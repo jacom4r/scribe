@@ -145,7 +145,7 @@ public static func read(_ url: URL) throws -> ChannelTracks
 
 Throws `ScribeError.transcriptionFailed` if the file cannot be opened, is not
 two channels, or has zero frames. Peak memory is the two 16 kHz tracks (about
-61 MB per channel-hour) plus one block.
+230 MB per channel-hour) plus one block.
 
 ### TranscriptionPipeline
 

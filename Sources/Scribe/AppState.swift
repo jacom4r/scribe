@@ -14,6 +14,9 @@ final class AppState {
     private(set) var transcriptionStatus: String?
     private var timer: Timer?
     private let notifier = Notifier()
+    /// Implicitly unwrapped so the queue's callbacks can capture `self` in
+    /// `init`: every other stored property is initialised before the queue is
+    /// built, and nothing reads `queue` before that assignment.
     private var queue: TranscriptionQueue!
 
     init(session: RecordingSession = RecordingSession(), engine: any SpeechEngine = FluidAudioEngine()) {
@@ -120,7 +123,7 @@ final class AppState {
         case .success(let mdURL):
             notifier.transcriptSaved(mdURL)
         case .failure(let error):
-            notifier.transcriptionFailed(error)
+            notifier.transcriptionFailed(wavURL, error)
         }
     }
 

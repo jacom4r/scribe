@@ -3,9 +3,11 @@
 Run after any change to `ScribeCore` capture code or the app target. Unit
 tests do not cover the audio path, so this is the only check that it works.
 
-**Status:** Completed 2026-09-14 against phase 1 (`phase1-recorder`). All
-steps passed; the only issue found is the known input-device hot-swap gap
-below (stops instead of continuing), confirmed after a week of daily use.
+**Status:** Phase 1 checks completed 2026-09-14 against phase 1
+(`phase1-recorder`). All steps passed; the only issue found is the known
+input-device hot-swap gap below (stops instead of continuing), confirmed
+after a week of daily use. Phase 2 transcription checks 1, 2, 4 and 5 are
+pending a manual run; check 3 was run 2026-09-17: 30 s, 1.3 GB.
 
 Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
 
@@ -75,15 +77,16 @@ Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
 Each check needs the user at the machine. `scripts/bundle.sh` first.
 
 1. **First launch downloads models.** `rm -rf ~/Library/Application\ Support/FluidAudio`, launch. The menu shows "Preparing transcription models…" and the line clears within a couple of minutes. The cache directory is now about 470 MB. Keep the menu open while it clears: the line should disappear without closing and reopening the menu.
-2. **A stopped recording gets a transcript.** On a call with headphones, record 30 s in which both you and someone else speak, stop. Within about 10 s: "Transcript saved" notification, and `~/Music/Scribe/<name>.md` next to the WAV with a `**Me**` block and at least one `**Speaker 1**` block.
+2. **A stopped recording gets a transcript.** On a call with headphones, record 30 s in which both you and someone else speak, stop. Within about 10 s: "Transcript saved" notification, and `~/Music/Scribe/<name>.md` next to the WAV with a `**Me**` block and at least one `**Speaker 1**` block. The `Duration:` line in the transcript matches the WAV's length as shown by `afinfo`.
 3. **Long recording, bounded memory.** `.build/release/scribe-cli transcribe` on an hour-long recording finishes in under two minutes. Peak memory for `scribe-cli` (`/usr/bin/time -l`, maximum resident set size) stays under 2 GB. Reference on the M5 Pro, 71-minute recording: 30 s wall, 1.3 GB peak; the two 16 kHz tracks are about 550 MB of that and the CoreML models most of the rest.
 4. **Recording while transcribing.** Stop a long recording, immediately start another. The menu shows the elapsed timer and "Transcribing …" together; the new recording saves normally; its transcript arrives after the first one's.
 5. **Offline first launch heals.** Turn Wi-Fi off, delete the model cache, launch, record 10 s, stop. "Transcription failed" notification; the menu shows the filename with "Transcription models couldn't be loaded". Turn Wi-Fi on, record 10 s, stop. Transcript arrives and the failure line clears.
 
-Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown. A recording that is finalized by quitting the app is saved but not transcribed; only recordings stopped from the menu (or by an interruption) are queued.
+Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown.
 
-## Known gaps (phase 1.5)
+## Known gaps
 
+- A recording finalized by quitting the app is saved but never transcribed, and a transcription in progress at quit is abandoned; there is no manual transcribe command in the app yet (`scribe-cli transcribe` covers it). Phase 2.5 candidate: scan for `.wav` files without a sibling `.md` at launch.
 - An input device swap drops a short window of audio on both channels while the
   aggregate is rebuilt, so a recording with swaps in it is slightly shorter than
   the elapsed time. Padding this was specced and deliberately dropped; see

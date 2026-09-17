@@ -41,6 +41,10 @@ public enum ChannelReader {
             throw ScribeError.transcriptionFailed(
                 "expected a stereo recording, got \(fileFormat.mChannelsPerFrame) channel(s)")
         }
+        guard fileFormat.mSampleRate > 0 else {
+            throw ScribeError.transcriptionFailed(
+                "\(url.lastPathComponent) reports an invalid sample rate")
+        }
 
         var client = AudioStreamBasicDescription(
             mSampleRate: sampleRate,

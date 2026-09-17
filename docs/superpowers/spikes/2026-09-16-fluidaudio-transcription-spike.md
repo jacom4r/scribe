@@ -109,7 +109,7 @@ Adopt FluidAudio 0.15.7 (exact pin) for phase 2. Four consequences for the desig
 
 1. **Stream the WAV in, per channel.** Read and resample in chunks rather than materialising the whole file;
    the goal is peak memory that does not scale with meeting length. ASR still wants each channel as one
-   `[Float]` (about 61 MB per channel-hour at 16 kHz), which is fine; the 48 kHz stereo copy is what must go.
+   `[Float]` (about 230 MB per channel-hour at 16 kHz), which is fine; the 48 kHz stereo copy is what must go.
 2. **Phrase-first turn assembly.** Per-speaker phrases by intra-speaker pause, then interleave, then merge.
    Pure logic, lives in ScribeCore, fully unit-testable with fake word timings.
 3. **Degenerate inputs are normal.** A silent mic channel yields zero words and no "Me" in the speaker list.

@@ -25,7 +25,7 @@ public actor FluidAudioEngine: SpeechEngine {
                 // actor state and then be handed to its own nonisolated
                 // `process`. Prepare a throwaway one here so the download and
                 // CoreML compile happen at launch; `diarize` reloads from the
-                // on-disk cache per call, which the spike measured at ~0.15 s.
+                // on-disk cache per call, measured at about 0.05 s.
                 try await OfflineDiarizerManager(config: .default).prepareModels()
                 diarizerReady = true
             }

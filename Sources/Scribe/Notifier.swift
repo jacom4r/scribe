@@ -23,8 +23,8 @@ final class Notifier {
         post(title: "Transcript saved", body: url.lastPathComponent)
     }
 
-    func transcriptionFailed(_ error: ScribeError) {
-        post(title: "Transcription failed", body: error.userMessage)
+    func transcriptionFailed(_ wavURL: URL, _ error: ScribeError) {
+        post(title: "Transcription failed", body: "\(wavURL.lastPathComponent): \(error.userMessage)")
     }
 
     private func post(title: String, body: String) {
