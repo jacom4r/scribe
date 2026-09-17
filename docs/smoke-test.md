@@ -70,6 +70,18 @@ Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
     available, so the recording was stopped." notification — the phase 1
     behavior.
 
+## Transcription (phase 2)
+
+Each check needs the user at the machine. `scripts/bundle.sh` first.
+
+1. **First launch downloads models.** `rm -rf ~/Library/Application\ Support/FluidAudio`, launch. The menu shows "Preparing transcription models…" and the line clears within a couple of minutes. The cache directory is now about 470 MB. Keep the menu open while it clears: the line should disappear without closing and reopening the menu.
+2. **A stopped recording gets a transcript.** On a call with headphones, record 30 s in which both you and someone else speak, stop. Within about 10 s: "Transcript saved" notification, and `~/Music/Scribe/<name>.md` next to the WAV with a `**Me**` block and at least one `**Speaker 1**` block.
+3. **Long recording, bounded memory.** `.build/debug/scribe-cli transcribe` on an hour-long recording finishes in under two minutes. Activity Monitor peak memory for `scribe-cli` stays under 1 GB.
+4. **Recording while transcribing.** Stop a long recording, immediately start another. The menu shows the elapsed timer and "Transcribing …" together; the new recording saves normally; its transcript arrives after the first one's.
+5. **Offline first launch heals.** Turn Wi-Fi off, delete the model cache, launch, record 10 s, stop. "Transcription failed" notification; the menu shows the filename with "Transcription models couldn't be loaded". Turn Wi-Fi on, record 10 s, stop. Transcript arrives and the failure line clears.
+
+Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown. A recording that is finalized by quitting the app is saved but not transcribed; only recordings stopped from the menu (or by an interruption) are queued.
+
 ## Known gaps (phase 1.5)
 
 - An input device swap drops a short window of audio on both channels while the

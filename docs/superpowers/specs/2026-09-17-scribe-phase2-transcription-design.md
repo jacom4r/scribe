@@ -114,9 +114,14 @@ public protocol SpeechEngine: Sendable {
 }
 ```
 
-`FluidAudioEngine` owns one `AsrManager` and one `OfflineDiarizerManager`.
+`FluidAudioEngine` owns one `AsrManager`. It does not store an
+`OfflineDiarizerManager`: that class is not `Sendable`, so Swift 6 forbids an
+actor from holding it and then calling its nonisolated async `process`.
+Instead `prepare()` runs `prepareModels()` on a throwaway manager once to
+download and compile, and `diarize` constructs a fresh manager per call,
+loading from the on-disk cache (about 0.05 s measured).
 `prepare()` calls `AsrModels.downloadAndLoad(version: .v2)` then
-`loadModels`, and `prepareModels()` on the diarizer, wrapping any error in
+`loadModels`, wrapping any error in
 `ScribeError.modelsUnavailable(description)`. `transcribe` makes a fresh
 `TdtDecoderState` per call and maps `buildWordTimings` output to `TimedWord`.
 `diarize` catches `OfflineDiarizationError.noSpeechDetected` and returns

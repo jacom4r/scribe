@@ -2,8 +2,11 @@
 
 A macOS menu bar app that records meetings: all system audio plus the default
 microphone, saved as one stereo WAV (left = mic, right = system) in
-`~/Music/Scribe/`. Fully local. Transcription and diarization are planned as
-phase 2.
+`~/Music/Scribe/`. Fully local. When a recording stops, Scribe transcribes it
+on-device (Parakeet TDT v2 via FluidAudio, with speaker diarization on the
+system-audio channel) and writes `<same name>.md` next to the WAV: your mic
+is `Me`, everyone else is `Speaker N`. Speech models (about 470 MB) download
+once on first launch to `~/Library/Application Support/FluidAudio/Models/`.
 
 Requires macOS 14.2 or later.
 
@@ -17,6 +20,8 @@ scripts/bundle.sh debug    # same, debug build
 
 Always launch from `build/Scribe.app`. The bare binary in `.build/` has no
 bundle, so permissions and notifications will not work.
+
+The first `swift build` fetches FluidAudio and takes several minutes.
 
 ## Test
 
@@ -37,11 +42,13 @@ swift build
 .build/debug/scribe-cli tap                    # create a system audio tap, print its format
 .build/debug/scribe-cli devices                # build the mic + tap aggregate, print its layout
 .build/debug/scribe-cli record 10 /tmp         # record 10 s to /tmp
+.build/debug/scribe-cli transcribe path/to/recording.wav   # write recording.md next to it
 ```
 
 ## Layout
 
-- `Sources/ScribeCore` capture pipeline and recording state machine, no UI
+- `Sources/ScribeCore` capture pipeline, recording state machine, transcription pipeline and queue; no UI, no ML dependency
+- `Sources/ScribeTranscription` the FluidAudio adapter, the only target that imports it
 - `Sources/Scribe` SwiftUI menu bar app
 - `Sources/scribe-cli` headless recorder for spikes and smoke tests
 - `docs/superpowers/specs` design docs
