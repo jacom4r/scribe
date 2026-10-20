@@ -46,7 +46,13 @@ private func countingDown() -> MeetingDetector {
 
     @Test func startPressedStartsRecording() {
         var d = MeetingDetector()
-        #expect(run(&d, .teamsMic(true), .startPressed) == [.startRecording])
+        #expect(run(&d, .teamsMic(true), .startPressed) == [.removeStartPrompt, .startRecording])
+    }
+
+    @Test func recordingStartedClearsPendingStart() {
+        var d = MeetingDetector()
+        #expect(run(&d, .startPressed, .recordingStarted, .teamsMic(true)) == [])
+        #expect(run(&d, .teamsMic(false)) == [.beginCountdown])
     }
 
     @Test func startPressedWhileMicOffIsIgnored() {

@@ -77,6 +77,7 @@ public struct MeetingDetector: Equatable, Sendable {
 
         case .recordingStarted:
             recording = true
+            startPending = false
             armed = mic == true
             if promptShowing {
                 promptShowing = false
@@ -103,7 +104,7 @@ public struct MeetingDetector: Equatable, Sendable {
                 return []
             case true?:
                 promptShowing = false
-                return [.startRecording]
+                return [.removeStartPrompt, .startRecording]
             }
 
         case .continuePressed:

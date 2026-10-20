@@ -108,6 +108,7 @@ Setup: System Settings → Notifications → Scribe → alert style **Persistent
 5. **Manual start.** Start recording by hand, join a Teams meeting, then leave: no start notification, but the countdown and auto-stop happen.
 6. **No Teams.** Record by hand with Teams closed: the recording never stops by itself.
 7. **Stale notification.** Get a start notification, quit Scribe from the menu, leave the waiting room. Relaunch by pressing Start Recording on the notification (or open Scribe and confirm the old notification is gone). Nothing records.
+8. **Relaunch from the notification.** Get a start notification, quit Scribe from the menu, stay in the waiting room, then press Start Recording on the notification. Scribe relaunches and a recording starts within about 2 s. Leave the meeting: the countdown and auto-stop work as usual.
 
 ## Known gaps
 

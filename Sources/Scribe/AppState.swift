@@ -19,10 +19,10 @@ final class AppState {
     /// Set only while a Teams-ended stop countdown runs: "Teams meeting ended. Stopping in N s".
     private(set) var countdownText: String?
     private var timer: Timer?
-    private var countdownTimer: Timer?
-    private var countdownDeadline: Date?
-    private var detector = MeetingDetector()
-    private var teamsMonitor: TeamsMicMonitor?
+    @ObservationIgnored private var countdownTimer: Timer?
+    @ObservationIgnored private var countdownDeadline: Date?
+    @ObservationIgnored private var detector = MeetingDetector()
+    @ObservationIgnored private var teamsMonitor: TeamsMicMonitor?
     private let notifier = Notifier()
     /// Implicitly unwrapped so the queue's callbacks can capture `self` in
     /// `init`: every other stored property is initialised before the queue is
@@ -99,14 +99,18 @@ final class AppState {
         }
     }
 
-    private func stopRecording() {
+    /// `notifyOnFailure` is for stops nobody is watching (the Teams auto-stop),
+    /// so a failed save still reaches the user.
+    private func stopRecording(notifyOnFailure: Bool = false) {
         do {
             let url = try session.stop()
             stopTimer()
             recordingSaved(url)
         } catch {
             stopTimer()
-            lastError = (error as? ScribeError) ?? .writeFailed(OSStatus((error as NSError).code))
+            let failure = (error as? ScribeError) ?? .writeFailed(OSStatus((error as NSError).code))
+            lastError = failure
+            if notifyOnFailure { notifier.recordingStopped(failure) }
         }
         send(.recordingStopped)
     }
@@ -209,12 +213,13 @@ final class AppState {
                     notifier.recordingDidNotStart(error)
                 }
             case .stopRecording:
-                stopRecording()
+                stopRecording(notifyOnFailure: true)
             }
         }
     }
 
     private func beginCountdown() {
+        countdownTimer?.invalidate()
         countdownDeadline = Date().addingTimeInterval(MeetingDetector.stopCountdown)
         // `.common` mode for the same reason as the elapsed timer: an open menu
         // must not hold the countdown back.

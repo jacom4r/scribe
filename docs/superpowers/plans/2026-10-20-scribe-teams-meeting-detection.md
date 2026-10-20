@@ -205,7 +205,7 @@ git commit -m "Add a monitor that reports when Teams holds the microphone"
 | `startPressed` | recording | `[]` | — |
 | `startPressed` | mic state nil | `[]` | start pending |
 | `startPressed` | mic off | `[]` | — |
-| `startPressed` | mic on | `[.startRecording]` | prompt not showing |
+| `startPressed` | mic on | `[.removeStartPrompt, .startRecording]` | prompt not showing |
 | `continuePressed` | counting down | `[.endCountdown]` | not armed, not counting |
 | `continuePressed` | otherwise | `[]` | — |
 | `countdownElapsed` | counting down | `[.endCountdown, .stopRecording]` | not counting |
@@ -222,7 +222,7 @@ Helper: `func run(_ d: inout MeetingDetector, _ events: MeetingDetector.Event...
     @Test func micOnWhileIdlePostsPrompt()            // [.teamsMic(false), .teamsMic(true)] -> [.postStartPrompt]
     @Test func repeatedMicOnPostsOnce()               // ... .teamsMic(true), .teamsMic(true) -> []
     @Test func ignoringPromptNeverRecords()           // mic on, mic off -> [.removeStartPrompt]; no .startRecording anywhere in the sequence
-    @Test func startPressedStartsRecording()          // mic on, .startPressed -> [.startRecording]
+    @Test func startPressedStartsRecording()          // mic on, .startPressed -> [.removeStartPrompt, .startRecording]
     @Test func startPressedWhileMicOffIsIgnored()     // mic on, mic off, .startPressed -> []
     @Test func startPressedBeforeFirstReadingWaitsForMicOn()  // .startPressed -> []; then .teamsMic(true) -> [.startRecording]
     @Test func startPressedBeforeFirstReadingDroppedIfMicOff() // .startPressed, .teamsMic(false) -> []; then .teamsMic(true) -> [.postStartPrompt]
