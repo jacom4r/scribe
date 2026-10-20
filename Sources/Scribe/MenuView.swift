@@ -29,6 +29,7 @@ struct MenuView: View {
 
         Divider()
         Button("Open Recordings Folder") { state.openRecordingsFolder() }
+        Button("Choose Recordings Folder…") { state.chooseRecordingsFolder() }
         Button("Recording Permissions…") { state.openPrivacySettings() }
         Button("Quit Scribe") { state.quit() }
             .keyboardShortcut("q")

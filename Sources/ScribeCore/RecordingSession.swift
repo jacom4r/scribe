@@ -14,7 +14,8 @@ public final class RecordingSession {
     public private(set) var state: State = .idle
     /// The microphone currently being recorded, or nil when idle.
     public private(set) var micName: String?
-    public let store: RecordingStore
+    /// Read only by `start()`, so replacing it mid-recording affects the next recording.
+    public var store: RecordingStore
 
     /// Called when a recording stops on its own (device change, write failure).
     /// Not called for a user-initiated `stop()`.

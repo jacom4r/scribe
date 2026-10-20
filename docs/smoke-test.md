@@ -82,6 +82,12 @@ Each check needs the user at the machine. `scripts/bundle.sh` first.
 4. **Recording while transcribing.** Stop a long recording, immediately start another. The menu shows the elapsed timer and "Transcribing …" together; the new recording saves normally; its transcript arrives after the first one's.
 5. **Offline first launch heals.** Turn Wi-Fi off, delete the model cache, launch, record 10 s, stop. "Transcription failed" notification; the menu shows the filename with "Transcription models couldn't be loaded". Turn Wi-Fi on, record 10 s, stop. Transcript arrives and the failure line clears.
 
+## Recordings folder (phase 2.5)
+
+1. **Choosing a folder.** Choose Recordings Folder… opens a folder panel in front of other windows, starting at the current folder. Pick (or create) a different folder, record 10 s, stop. The WAV and its `.md` land in the new folder, and Open Recordings Folder opens it.
+2. **Survives relaunch.** Quit and relaunch; Open Recordings Folder still opens the chosen folder, and the next recording lands there.
+3. **Changing mid-recording.** Start recording, choose another folder, stop. That recording stays in the old folder; the next one goes to the new folder.
+
 Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown.
 
 ## Known gaps
@@ -92,7 +98,7 @@ Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape er
   the elapsed time. Padding this was specced and deliberately dropped; see
   `docs/superpowers/specs/2026-09-14-scribe-input-hotswap-design.md`.
 - A crash mid-recording leaves a WAV with an unfinished header.
-- No global hotkey, no input device picker, no launch at login, no app icon.
+- No global hotkey, no input device picker, no launch at login.
 - Permission denial cannot be detected at start time on this machine; a
   denied tap records silence on the right channel. Use "Recording
   Permissions…" in the menu.

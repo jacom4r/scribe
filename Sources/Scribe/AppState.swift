@@ -18,9 +18,13 @@ final class AppState {
     /// `init`: every other stored property is initialised before the queue is
     /// built, and nothing reads `queue` before that assignment.
     private var queue: TranscriptionQueue!
+    private static let recordingsDirectoryKey = "recordingsDirectory"
 
     init(session: RecordingSession = RecordingSession(), engine: any SpeechEngine = FluidAudioEngine()) {
         self.session = session
+        if let path = UserDefaults.standard.string(forKey: Self.recordingsDirectoryKey) {
+            session.store = RecordingStore(directory: URL(fileURLWithPath: path, isDirectory: true))
+        }
         session.onInterrupted = { [weak self] error, url in
             self?.recordingInterrupted(error, url: url)
         }
@@ -63,6 +67,21 @@ final class AppState {
     func openRecordingsFolder() {
         try? FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
         NSWorkspace.shared.open(recordingsDirectory)
+    }
+
+    /// Lets the user pick where new recordings go; remembered across launches.
+    func chooseRecordingsFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = recordingsDirectory
+        panel.prompt = "Choose"
+        // A menu bar app is not frontmost, so the panel would open behind other windows.
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        UserDefaults.standard.set(url.path, forKey: Self.recordingsDirectoryKey)
+        session.store = RecordingStore(directory: url)
     }
 
     /// System Settings → Privacy & Security → Screen & System Audio Recording.
