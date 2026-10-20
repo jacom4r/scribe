@@ -21,12 +21,24 @@ public final class TeamsMicMonitor: @unchecked Sendable {
         processes.contains { $0.bundleID.hasPrefix(bundlePrefix) && $0.isRunningInput }
     }
 
-    /// Reads Core Audio; nil when the process list can't be read.
+    /// Maps raw reads (input state nil = read failed) to the monitor's value.
+    /// nil if a Teams process's input state couldn't be read, so a transient
+    /// failure never looks like Teams releasing the mic. Non-Teams objects with
+    /// a failed read count as not running input.
+    static func teamsHoldsMic(rawReads: [(bundleID: String, isRunningInput: Bool?)]) -> Bool? {
+        var infos: [AudioProcessInfo] = []
+        for read in rawReads {
+            if read.bundleID.hasPrefix(bundlePrefix), read.isRunningInput == nil { return nil }
+            infos.append(AudioProcessInfo(bundleID: read.bundleID, isRunningInput: read.isRunningInput ?? false))
+        }
+        return teamsHoldsMic(infos)
+    }
+
+    /// Reads Core Audio; nil when the process list or a Teams process's input state can't be read.
     public static func readCoreAudio() -> Bool? {
         guard let objects = CoreAudio.processObjects() else { return nil }
-        return teamsHoldsMic(objects.map {
-            AudioProcessInfo(bundleID: CoreAudio.bundleID(ofProcess: $0),
-                             isRunningInput: CoreAudio.isRunningInput($0))
+        return teamsHoldsMic(rawReads: objects.map {
+            (bundleID: CoreAudio.bundleID(ofProcess: $0), isRunningInput: CoreAudio.isRunningInput($0))
         })
     }
 

@@ -39,6 +39,19 @@ private final class Readings: @unchecked Sendable {
         #expect(!TeamsMicMonitor.teamsHoldsMic([]))
     }
 
+    @Test func failedInputReadOnTeamsProcessIsUnknown() {
+        #expect(TeamsMicMonitor.teamsHoldsMic(rawReads: [
+            (bundleID: "com.microsoft.teams2.helper", isRunningInput: nil)]) == nil)
+    }
+
+    @Test func failedInputReadOnOtherAppIsIgnored() {
+        #expect(TeamsMicMonitor.teamsHoldsMic(rawReads: [
+            (bundleID: "us.zoom.xos", isRunningInput: nil),
+            (bundleID: "com.microsoft.teams2.helper", isRunningInput: true)]) == true)
+        #expect(TeamsMicMonitor.teamsHoldsMic(rawReads: [
+            (bundleID: "us.zoom.xos", isRunningInput: nil)]) == false)
+    }
+
     @Test func reportsFirstReadingThenOnlyChanges() async {
         #expect(await run([false, false, true, true, false], expecting: 3) == [false, true, false])
     }

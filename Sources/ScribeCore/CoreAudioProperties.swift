@@ -91,12 +91,13 @@ enum CoreAudio {
         return value.takeRetainedValue() as String
     }
 
-    /// True while the process is capturing audio input.
-    static func isRunningInput(_ process: AudioObjectID) -> Bool {
+    /// True while the process is capturing audio input; nil if the read fails.
+    static func isRunningInput(_ process: AudioObjectID) -> Bool? {
         var addr = address(kAudioProcessPropertyIsRunningInput)
         var value: UInt32 = 0
         var size = UInt32(MemoryLayout<UInt32>.size)
         let status = AudioObjectGetPropertyData(process, &addr, 0, nil, &size, &value)
-        return status == noErr && value == 1
+        guard status == noErr else { return nil }
+        return value == 1
     }
 }
