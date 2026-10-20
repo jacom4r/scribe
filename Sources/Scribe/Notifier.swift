@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import ScribeCore
 import UserNotifications
@@ -35,8 +36,22 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         ])
     }
 
-    func requestAuthorization() {
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    /// macOS shows its prompt only the first time; after that this just reports the answer.
+    func requestAuthorization() async -> Bool {
+        (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+    }
+
+    /// Whether macOS currently lets Scribe show notifications.
+    func isAuthorized() async -> Bool {
+        let status = await center.notificationSettings().authorizationStatus
+        return status == .authorized || status == .provisional
+    }
+
+    /// System Settings → Notifications → Scribe.
+    func openSettings() {
+        let id = Bundle.main.bundleIdentifier ?? ""
+        let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")!
+        NSWorkspace.shared.open(url)
     }
 
     func recordingSaved(_ url: URL) {

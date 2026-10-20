@@ -13,6 +13,12 @@ struct MenuView: View {
             Divider()
         }
 
+        if !state.notificationsAllowed {
+            Text("Notifications are off")
+            Button("Turn On Notifications…") { state.openNotificationSettings() }
+            Divider()
+        }
+
         if state.isRecording {
             Button("Stop Recording") { state.toggle() }
             Text("Recording  \(state.elapsedText)")

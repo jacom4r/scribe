@@ -16,6 +16,10 @@ final class AppState {
     /// Read once at launch and after each toggle; a change made in System
     /// Settings shows up in the menu after the next relaunch.
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
+    /// False when macOS blocks Scribe's notifications, so the menu can offer
+    /// to turn them on. Rechecked whenever a menu opens, so a change made in
+    /// System Settings shows up the next time the user looks.
+    private(set) var notificationsAllowed = true
     /// Set only while a Teams-ended stop countdown runs: "Teams meeting ended. Stopping in N s".
     private(set) var countdownText: String?
     private var timer: Timer?
@@ -39,7 +43,15 @@ final class AppState {
             self?.recordingInterrupted(error, url: url)
         }
         AppDelegate.terminationHandler = { [weak self] in self?.finalizeForTermination() }
-        notifier.requestAuthorization()
+        Task { [weak self] in
+            guard let self else { return }
+            notificationsAllowed = await notifier.requestAuthorization()
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshNotificationsAllowed() }
+        }
 
         queue = TranscriptionQueue(
             engine: engine,
@@ -158,6 +170,14 @@ final class AppState {
     func openPrivacySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")!
         NSWorkspace.shared.open(url)
+    }
+
+    func openNotificationSettings() {
+        notifier.openSettings()
+    }
+
+    private func refreshNotificationsAllowed() {
+        Task { notificationsAllowed = await notifier.isAuthorized() }
     }
 
     func quit() {
