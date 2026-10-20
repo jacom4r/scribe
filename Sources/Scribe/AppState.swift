@@ -16,7 +16,13 @@ final class AppState {
     /// Read once at launch and after each toggle; a change made in System
     /// Settings shows up in the menu after the next relaunch.
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
+    /// Set only while a Teams-ended stop countdown runs: "Teams meeting ended. Stopping in N s".
+    private(set) var countdownText: String?
     private var timer: Timer?
+    private var countdownTimer: Timer?
+    private var countdownDeadline: Date?
+    private var detector = MeetingDetector()
+    private var teamsMonitor: TeamsMicMonitor?
     private let notifier = Notifier()
     /// Implicitly unwrapped so the queue's callbacks can capture `self` in
     /// `init`: every other stored property is initialised before the queue is
@@ -44,6 +50,18 @@ final class AppState {
                 Task { @MainActor in self?.transcriptionFinished(wavURL, result) }
             })
         Task { await queue.prepareModels() }
+
+        // Prompts from a previous run are stale: their meeting is over or unknown.
+        notifier.removeMeetingNotifications()
+        notifier.onMeetingAction = { [weak self] action in
+            switch action {
+            case .startRecording: self?.send(.startPressed)
+            case .continueRecording: self?.send(.continuePressed)
+            }
+        }
+        let monitor = TeamsMicMonitor { [weak self] on in self?.send(.teamsMic(on)) }
+        monitor.start()
+        teamsMonitor = monitor
     }
 
     var isRecording: Bool { session.isRecording }
@@ -52,20 +70,45 @@ final class AppState {
 
     /// Start if idle, stop if recording. Errors land in `lastError`.
     func toggle() {
+        if session.isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    /// Keeps the recording running when Teams has ended; it stays until stopped by hand.
+    func continueRecording() {
+        send(.continuePressed)
+    }
+
+    /// Returns the error on failure, after recording it in `lastError`.
+    @discardableResult
+    private func startRecording() -> ScribeError? {
         do {
-            if session.isRecording {
-                let url = try session.stop()
-                stopTimer()
-                recordingSaved(url)
-            } else {
-                lastError = nil
-                try session.start()
-                startTimer()
-            }
+            lastError = nil
+            try session.start()
+            startTimer()
+            send(.recordingStarted)
+            return nil
+        } catch {
+            stopTimer()
+            let failure = (error as? ScribeError) ?? .writeFailed(OSStatus((error as NSError).code))
+            lastError = failure
+            return failure
+        }
+    }
+
+    private func stopRecording() {
+        do {
+            let url = try session.stop()
+            stopTimer()
+            recordingSaved(url)
         } catch {
             stopTimer()
             lastError = (error as? ScribeError) ?? .writeFailed(OSStatus((error as NSError).code))
         }
+        send(.recordingStopped)
     }
 
     func openRecordingsFolder() {
@@ -125,6 +168,7 @@ final class AppState {
         guard session.isRecording else { return }
         _ = try? session.stop()
         stopTimer()
+        send(.recordingStopped)
     }
 
     // MARK: - Recording outcomes
@@ -139,6 +183,56 @@ final class AppState {
         lastError = error
         notifier.recordingStopped(error)
         enqueueTranscription(url)
+        send(.recordingStopped)
+    }
+
+    // MARK: - Teams meeting detection
+
+    /// Feeds the detector and performs what it asks, in order. Effects can send
+    /// further events (a start or stop reports back); that is safe because
+    /// `handle` has already updated the detector's state.
+    private func send(_ event: MeetingDetector.Event) {
+        for effect in detector.handle(event) {
+            switch effect {
+            case .postStartPrompt:
+                notifier.postMeetingStart()
+            case .removeStartPrompt:
+                notifier.removeMeetingStart()
+            case .beginCountdown:
+                beginCountdown()
+            case .endCountdown:
+                endCountdown()
+            case .startRecording:
+                // The detector can ask twice if the user started by hand meanwhile.
+                guard !session.isRecording else { continue }
+                if let error = startRecording() {
+                    notifier.recordingDidNotStart(error)
+                }
+            case .stopRecording:
+                stopRecording()
+            }
+        }
+    }
+
+    private func beginCountdown() {
+        countdownDeadline = Date().addingTimeInterval(MeetingDetector.stopCountdown)
+        // `.common` mode for the same reason as the elapsed timer: an open menu
+        // must not hold the countdown back.
+        let t = Timer(timeInterval: MeetingDetector.stopCountdown, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.send(.countdownElapsed) }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        countdownTimer = t
+        notifier.postMeetingEnd()
+        tick()
+    }
+
+    private func endCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        countdownDeadline = nil
+        countdownText = nil
+        notifier.removeMeetingEnd()
     }
 
     // MARK: - Transcription
@@ -191,5 +285,9 @@ final class AppState {
 
     private func tick() {
         elapsedText = formatElapsed(session.elapsed())
+        if let deadline = countdownDeadline {
+            let seconds = max(0, Int(deadline.timeIntervalSinceNow.rounded(.up)))
+            countdownText = "Teams meeting ended. Stopping in \(seconds) s"
+        }
     }
 }

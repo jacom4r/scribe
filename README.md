@@ -8,6 +8,12 @@ system-audio channel) and writes `<same name>.md` next to the WAV: your mic
 is `Me`, everyone else is `Speaker N`. Speech models (about 470 MB) download
 once on first launch to `~/Library/Application Support/FluidAudio/Models/`.
 
+When Microsoft Teams starts using the microphone, Scribe posts a "Start
+Recording" notification; it never starts on its own. When Teams stops, a
+recording that Teams was part of stops after a 15 s countdown unless you press
+"Continue Recording". Set Scribe's alert style to Persistent in System Settings
+→ Notifications so the start prompt stays up while you wait to join.
+
 Requires macOS 14.2 or later.
 
 ## Build and run

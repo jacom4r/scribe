@@ -97,6 +97,18 @@ Each check needs the user at the machine. `scripts/bundle.sh` first.
 
 Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown.
 
+## Teams meeting detection
+
+Setup: System Settings → Notifications → Scribe → alert style **Persistent**, so the start prompt stays up in the waiting room.
+
+1. **Ignored prompt.** Open a Teams meeting's waiting room: a "Teams meeting detected" notification appears within about 2 s. Ignore it and back out: the notification disappears and nothing is recorded.
+2. **Start from the prompt.** Waiting room, press Start Recording on the notification, join, switch to AirPods, mute and unmute, then leave. The "Teams meeting ended" notification and the menu countdown appear, the recording stops at 15 s, and the transcript arrives.
+3. **Continue.** Leave a meeting and press Continue Recording (notification or menu): the recording keeps going until you stop it by hand.
+4. **Quick rejoin.** Leave and rejoin within 15 s: the countdown cancels, its notification goes away, and the recording continues.
+5. **Manual start.** Start recording by hand, join a Teams meeting, then leave: no start notification, but the countdown and auto-stop happen.
+6. **No Teams.** Record by hand with Teams closed: the recording never stops by itself.
+7. **Stale notification.** Get a start notification, quit Scribe from the menu, leave the waiting room. Relaunch by pressing Start Recording on the notification (or open Scribe and confirm the old notification is gone). Nothing records.
+
 ## Known gaps
 
 - A recording finalized by quitting the app is saved but never transcribed, and a transcription in progress at quit is abandoned; there is no manual transcribe command in the app yet (`scribe-cli transcribe` covers it).
@@ -112,3 +124,4 @@ Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape er
   Permissions…" in the menu.
 - The keepalive holds the default output device active for the duration of a
   recording (silent; a small power cost on Bluetooth devices).
+- If Scribe's notifications are denied, there is no start prompt; the stop countdown still shows in the menu.

@@ -19,6 +19,10 @@ struct MenuView: View {
             if let micName = state.micName {
                 Text(micName)
             }
+            if let countdown = state.countdownText {
+                Text(countdown)
+                Button("Continue Recording") { state.continueRecording() }
+            }
         } else {
             Button("Start Recording") { state.toggle() }
         }
