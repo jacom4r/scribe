@@ -16,6 +16,9 @@ final class AppState {
     /// Read once at launch and after each toggle; a change made in System
     /// Settings shows up in the menu after the next relaunch.
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
+    /// When on, a Teams meeting starts recording straight away instead of
+    /// asking first. Remembered across launches.
+    private(set) var autoStartsMeetings = UserDefaults.standard.bool(forKey: autoStartKey)
     /// False when macOS blocks Scribe's notifications, so the menu can offer
     /// to turn them on. Rechecked whenever a menu opens, so a change made in
     /// System Settings shows up the next time the user looks.
@@ -33,6 +36,7 @@ final class AppState {
     /// built, and nothing reads `queue` before that assignment.
     private var queue: TranscriptionQueue!
     private static let recordingsDirectoryKey = "recordingsDirectory"
+    private static let autoStartKey = "autoStartsMeetings"
 
     init(session: RecordingSession = RecordingSession(), engine: any SpeechEngine = FluidAudioEngine()) {
         self.session = session
@@ -166,6 +170,11 @@ final class AppState {
         launchesAtLogin = service.status == .enabled
     }
 
+    func setAutoStartsMeetings(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Self.autoStartKey)
+        autoStartsMeetings = enabled
+    }
+
     /// System Settings → Privacy & Security → Screen & System Audio Recording.
     func openPrivacySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")!
@@ -219,7 +228,14 @@ final class AppState {
         for effect in detector.handle(event) {
             switch effect {
             case .postStartPrompt:
-                notifier.postMeetingStart()
+                if autoStartsMeetings {
+                    // Answer the prompt on the user's behalf; a failed start
+                    // already posts its own notification.
+                    send(.startPressed)
+                    if session.isRecording { notifier.postMeetingAutoStarted() }
+                } else {
+                    notifier.postMeetingStart()
+                }
             case .removeStartPrompt:
                 notifier.removeMeetingStart()
             case .beginCountdown:

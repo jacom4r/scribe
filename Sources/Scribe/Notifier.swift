@@ -19,6 +19,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     /// and removal can find them. Each doubles as its category id.
     private static let startID = "meeting-start"
     private static let endID = "meeting-end"
+    private static let autoStartedID = "meeting-auto-started"
     private static let startActionID = "start-recording"
     private static let continueActionID = "continue-recording"
     /// Called on the main actor when the user presses a meeting notification's button.
@@ -80,6 +81,16 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     func removeMeetingStart() { remove(Self.startID) }
 
+    /// Shown when a meeting started a recording without asking. Taken down
+    /// after a few seconds so it doesn't linger in Notification Center.
+    func postMeetingAutoStarted() {
+        post(title: "Scribe is recording", body: "Teams meeting detected", id: Self.autoStartedID)
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            remove(Self.autoStartedID)
+        }
+    }
+
     func postMeetingEnd() {
         post(title: "Teams meeting ended", body: "Stopping the recording in 15 s", id: Self.endID, category: Self.endID)
     }
@@ -91,6 +102,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func removeMeetingNotifications() {
         remove(Self.startID)
         remove(Self.endID)
+        remove(Self.autoStartedID)
     }
 
     private func remove(_ id: String) {

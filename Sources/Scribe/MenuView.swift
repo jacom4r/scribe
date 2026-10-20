@@ -41,6 +41,9 @@ struct MenuView: View {
         Button("Open Recordings Folder") { state.openRecordingsFolder() }
         Button("Choose Recordings Folder…") { state.chooseRecordingsFolder() }
         Button("Recording Permissions…") { state.openPrivacySettings() }
+        Toggle("Record Teams Meetings Automatically", isOn: Binding(
+            get: { state.autoStartsMeetings },
+            set: { state.setAutoStartsMeetings($0) }))
         Toggle("Launch at Login", isOn: Binding(
             get: { state.launchesAtLogin },
             set: { state.setLaunchesAtLogin($0) }))
