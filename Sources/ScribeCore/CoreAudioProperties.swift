@@ -68,4 +68,35 @@ enum CoreAudio {
         let list = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
         return list.map { Int($0.mNumberChannels) }
     }
+
+    /// Every process object Core Audio currently knows about; nil if the list can't be read.
+    static func processObjects() -> [AudioObjectID]? {
+        var addr = address(kAudioHardwarePropertyProcessObjectList)
+        var size: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size)
+        guard status == noErr else { return nil }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids)
+        guard status == noErr else { return nil }
+        return ids
+    }
+
+    /// Bundle ID of a process object, or "" if unavailable.
+    static func bundleID(ofProcess process: AudioObjectID) -> String {
+        var addr = address(kAudioProcessPropertyBundleID)
+        var value: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let status = AudioObjectGetPropertyData(process, &addr, 0, nil, &size, &value)
+        guard status == noErr, let value else { return "" }
+        return value.takeRetainedValue() as String
+    }
+
+    /// True while the process is capturing audio input.
+    static func isRunningInput(_ process: AudioObjectID) -> Bool {
+        var addr = address(kAudioProcessPropertyIsRunningInput)
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(process, &addr, 0, nil, &size, &value)
+        return status == noErr && value == 1
+    }
 }
