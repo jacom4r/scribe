@@ -3,11 +3,11 @@
 Run after any change to `ScribeCore` capture code or the app target. Unit
 tests do not cover the audio path, so this is the only check that it works.
 
-**Status:** Phase 1 checks completed 2026-09-14 against phase 1
-(`phase1-recorder`). All steps passed; the only issue found is the known
-input-device hot-swap gap below (stops instead of continuing), confirmed
-after a week of daily use. Phase 2 transcription checks 1, 2, 4 and 5 are
-pending a manual run; check 3 was run 2026-09-17: 30 s, 1.3 GB.
+**Status:** Phase 1 checks completed 2026-09-14; input-device hot-swap
+checks completed 2026-09-16. Phase 2 transcription check 3 was run
+2026-09-17 (30 s, 1.3 GB); checks 1, 2, 4 and 5 and the phase 2.5
+recordings folder checks are confirmed by a month of daily use as of
+2026-10-20. Launch at login checks completed 2026-10-20.
 
 Setup: `scripts/make-dev-cert.sh` once, then `scripts/bundle.sh debug`.
 
@@ -88,17 +88,25 @@ Each check needs the user at the machine. `scripts/bundle.sh` first.
 2. **Survives relaunch.** Quit and relaunch; Open Recordings Folder still opens the chosen folder, and the next recording lands there.
 3. **Changing mid-recording.** Start recording, choose another folder, stop. That recording stays in the old folder; the next one goes to the new folder.
 
+## Launch at login
+
+1. **Turning it on.** Launch at Login shows no checkmark on a fresh install. Choose it: the checkmark appears, and Scribe is listed under System Settings → General → Login Items & Extensions → Open at Login. If macOS asks for approval instead, Login Items settings open; approve Scribe there and relaunch.
+2. **It launches.** Log out and back in (or restart). The Scribe icon is in the menu bar without opening it by hand, and Launch at Login is still checked.
+3. **Survives a rebuild.** Run `scripts/bundle.sh`, log out and in. Scribe still launches.
+4. **Turning it off.** Choose Launch at Login again: the checkmark clears and Scribe leaves the Open at Login list. Log out and in; Scribe does not launch.
+
 Expected noise: FluidAudio logs a benign `E5RT ... slice_by_index: zero shape error` line to the console at model teardown.
 
 ## Known gaps
 
-- A recording finalized by quitting the app is saved but never transcribed, and a transcription in progress at quit is abandoned; there is no manual transcribe command in the app yet (`scribe-cli transcribe` covers it). Phase 2.5 candidate: scan for `.wav` files without a sibling `.md` at launch.
+- A recording finalized by quitting the app is saved but never transcribed, and a transcription in progress at quit is abandoned; there is no manual transcribe command in the app yet (`scribe-cli transcribe` covers it).
 - An input device swap drops a short window of audio on both channels while the
   aggregate is rebuilt, so a recording with swaps in it is slightly shorter than
   the elapsed time. Padding this was specced and deliberately dropped; see
   `docs/superpowers/specs/2026-09-14-scribe-input-hotswap-design.md`.
 - A crash mid-recording leaves a WAV with an unfinished header.
-- No global hotkey, no input device picker, no launch at login.
+- No global hotkey, no input device picker.
+- Launch at Login reflects System Settings changes only after a relaunch.
 - Permission denial cannot be detected at start time on this machine; a
   denied tap records silence on the right channel. Use "Recording
   Permissions…" in the menu.

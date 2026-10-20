@@ -3,6 +3,7 @@ import Foundation
 import Observation
 import ScribeCore
 import ScribeTranscription
+import ServiceManagement
 
 @MainActor
 @Observable
@@ -12,6 +13,9 @@ final class AppState {
     private(set) var elapsedText = "0:00"
     /// One line for the menu: preparing, transcribing, or the last failure. Nil when idle.
     private(set) var transcriptionStatus: String?
+    /// Read once at launch and after each toggle; a change made in System
+    /// Settings shows up in the menu after the next relaunch.
+    private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
     private var timer: Timer?
     private let notifier = Notifier()
     /// Implicitly unwrapped so the queue's callbacks can capture `self` in
@@ -82,6 +86,25 @@ final class AppState {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         UserDefaults.standard.set(url.path, forKey: Self.recordingsDirectoryKey)
         session.store = RecordingStore(directory: url)
+    }
+
+    /// Registers or unregisters Scribe as a login item. macOS can hold a new
+    /// registration for approval, in which case Login Items settings open.
+    func setLaunchesAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            lastError = .loginItemFailed(error.localizedDescription)
+        }
+        if service.status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()
+        }
+        launchesAtLogin = service.status == .enabled
     }
 
     /// System Settings → Privacy & Security → Screen & System Audio Recording.

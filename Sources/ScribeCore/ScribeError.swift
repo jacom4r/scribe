@@ -16,6 +16,8 @@ public enum ScribeError: Error, Equatable, Sendable {
     case modelsUnavailable(String)
     /// Anything else that stops a transcript from being written.
     case transcriptionFailed(String)
+    /// Registering or unregistering the login item failed. The string is the underlying error's description.
+    case loginItemFailed(String)
 
     public var userMessage: String {
         switch self {
@@ -41,6 +43,8 @@ public enum ScribeError: Error, Equatable, Sendable {
             return "Transcription models couldn't be loaded (\(detail))."
         case .transcriptionFailed(let detail):
             return "Transcription failed (\(detail))."
+        case .loginItemFailed(let detail):
+            return "Couldn't change Launch at Login (\(detail))."
         }
     }
 }

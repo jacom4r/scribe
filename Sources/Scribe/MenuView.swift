@@ -31,6 +31,9 @@ struct MenuView: View {
         Button("Open Recordings Folder") { state.openRecordingsFolder() }
         Button("Choose Recordings Folder…") { state.chooseRecordingsFolder() }
         Button("Recording Permissions…") { state.openPrivacySettings() }
+        Toggle("Launch at Login", isOn: Binding(
+            get: { state.launchesAtLogin },
+            set: { state.setLaunchesAtLogin($0) }))
         Button("Quit Scribe") { state.quit() }
             .keyboardShortcut("q")
     }
